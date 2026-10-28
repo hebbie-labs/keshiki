@@ -56,6 +56,11 @@ let legacy = try! JSONDecoder().decode(PondSettings.self, from: Data(#"{"theme":
 check(legacy.theme == "night" && legacy.rain && legacy.lockScreenPond, "settings saved by older versions still load")
 
 // Rendering
+let tiny = PixelBuffer(width: 10, height: 10)
+tiny.fillRect(Point(x: 3, y: -20), width: 2, height: 2, Color(0xffffff))
+tiny.fillRect(Point(x: 40, y: 3), width: 2, height: 2, Color(0xffffff))
+tiny.heart(Point(x: 5, y: -30), opacity: 1)
+check(tiny.pixels.allSatisfy { $0 == Color(0x000000).packed }, "drawing off the canvas is ignored instead of crashing")
 let scene = PondScene(aspectRatio: 16.0 / 10.0, settings: PondSettings())
 for _ in 0..<90 { scene.advance(by: 1.0 / 30) }
 let frame = scene.render()
