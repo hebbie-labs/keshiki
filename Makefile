@@ -1,19 +1,31 @@
 APP_NAME := Wallpapers
 APP      := build/$(APP_NAME).app
+SAVER    := build/$(APP_NAME).saver
 VERSION  := $(shell /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' App/Info.plist)
 DMG      := build/$(APP_NAME)-$(VERSION).dmg
-SOURCES  := $(wildcard App/*.swift)
+ENGINE   := $(wildcard Engine/*.swift)
+SWIFTC   := swiftc -O -swift-version 5 -target arm64-apple-macos14.0
 
-.PHONY: app dmg run test preview clean
+.PHONY: app saver dmg run test clean
 
-app: $(SOURCES) App/Info.plist $(shell find Pond Assets -type f)
+app: saver
 	rm -rf $(APP)
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources
-	swiftc -O -swift-version 5 -target arm64-apple-macos14.0 $(SOURCES) -o $(APP)/Contents/MacOS/$(APP_NAME)
+	$(SWIFTC) $(ENGINE) $(wildcard App/*.swift) -o $(APP)/Contents/MacOS/$(APP_NAME)
 	cp App/Info.plist $(APP)/Contents/Info.plist
-	cp -R Pond $(APP)/Contents/Resources/Pond
 	cp Assets/AppIcon.icns $(APP)/Contents/Resources/
-	codesign --force --sign - $(APP)
+	cp -R $(SAVER) $(APP)/Contents/Resources/
+	codesign --force --deep --sign - $(APP)
+
+# The same engine as a system screensaver (a loadable bundle).
+saver:
+	rm -rf $(SAVER)
+	mkdir -p $(SAVER)/Contents/MacOS $(SAVER)/Contents/Resources
+	$(SWIFTC) -module-name PondSaver -emit-library -Xlinker -bundle -Xlinker -undefined -Xlinker dynamic_lookup \
+		$(ENGINE) $(wildcard Saver/*.swift) -o $(SAVER)/Contents/MacOS/PondSaver
+	cp Saver/Info.plist $(SAVER)/Contents/Info.plist
+	cp Assets/AppIcon.icns $(SAVER)/Contents/Resources/thumbnail.icns
+	codesign --force --sign - $(SAVER)
 
 dmg: app
 	rm -rf build/dmg $(DMG)
@@ -28,11 +40,9 @@ run: app
 	open $(APP)
 
 test:
-	node --test tests/
-
-# Open the pond in a browser: http://localhost:8000/?theme=night&rain=1
-preview:
-	python3 -m http.server 8000 --directory Pond
+	mkdir -p build
+	$(SWIFTC) $(ENGINE) $(wildcard Tests/*.swift) -o build/engine-checks
+	build/engine-checks
 
 clean:
 	rm -rf build

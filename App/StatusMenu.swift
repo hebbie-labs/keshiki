@@ -40,6 +40,9 @@ final class StatusMenu: NSObject, NSMenuDelegate {
             toggle("Feed Koi with ⌥-Click", \.feedOnAlt),
             toggle("Rest on Battery", \.restOnBattery),
             .separator(),
+            toggle("Show Pond on Lock Screen", \.lockScreenPond),
+            MenuEntry("Install Screensaver…") { [unowned controller] in controller.installScreensaver() },
+            .separator(),
             NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"),
         ]
         return menu
@@ -54,10 +57,10 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
     private func visitorItems() -> [NSMenuItem] {
         [
-            MenuEntry("Invite the Goose") { [unowned controller] in controller.invite("goose") },
-            MenuEntry("Drop a Temari Ball") { [unowned controller] in controller.invite("ball") },
+            MenuEntry("Invite the Goose") { [unowned controller] in controller.invite(.goose) },
+            MenuEntry("Drop a Temari Ball") { [unowned controller] in controller.invite(.ball) },
             .separator(),
-            MenuEntry("Clear Visitors") { [unowned controller] in controller.invite("clear") },
+            MenuEntry("Clear Visitors") { [unowned controller] in controller.invite(.clear) },
         ]
     }
 

@@ -1,25 +1,28 @@
 import AppKit
-import WebKit
 
-/// A borderless window showing the pond on one display, normally tucked behind the desktop icons.
-final class PondWindow: NSWindow, WKNavigationDelegate {
-    private let webView: WKWebView
+/// A borderless window showing one pond on one display, normally tucked behind the desktop icons.
+final class PondWindow: NSWindow {
+    let scene: PondScene
+    private let pondView: PondView
 
-    init(screen: NSScreen, configuration: WKWebViewConfiguration) {
-        webView = WKWebView(frame: NSRect(origin: .zero, size: screen.frame.size), configuration: configuration)
+    init(screen: NSScreen, settings: PondSettings) {
+        scene = PondScene(aspectRatio: screen.frame.width / screen.frame.height, settings: settings)
+        pondView = PondView(frame: NSRect(origin: .zero, size: screen.frame.size))
         super.init(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
         isReleasedWhenClosed = false
-        webView.autoresizingMask = [.width, .height]
-        webView.navigationDelegate = self
-        webView.load(URLRequest(url: PondSchemeHandler.pageURL))
-        contentView = webView
-        setFrame(screen.frame, display: true)
+        contentView = pondView
+        setFrame(screen.frame, display: false)
         sitBehindDesktopIcons()
         orderFront(nil)
     }
 
     /// Borderless windows normally can't become key, but the screensaver needs key presses.
     override var canBecomeKey: Bool { true }
+
+    /// False while other windows cover the whole display; no point drawing then.
+    var isShowing: Bool {
+        occlusionState.contains(.visible)
+    }
 
     func sitBehindDesktopIcons() {
         level = NSWindow.Level(Int(CGWindowLevelForKey(.desktopWindow)))
@@ -34,16 +37,16 @@ final class PondWindow: NSWindow, WKNavigationDelegate {
         orderFrontRegardless()
     }
 
-    func run(_ javaScript: String) {
-        webView.evaluateJavaScript(javaScript)
+    func drawNextFrame() {
+        pondView.show(scene.render())
     }
 
-    /// Converts a screen point (origin bottom-left) into page coordinates (origin top-left).
-    func pagePoint(for screenPoint: NSPoint) -> CGPoint {
-        CGPoint(x: screenPoint.x - frame.minX, y: frame.maxY - screenPoint.y)
+    func greet(at spot: Point) {
+        pondView.greet(at: spot)
     }
 
-    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        webView.reload()
+    /// A screen point (origin bottom-left) as 0...1 across this window (origin top-left).
+    func normalizedPoint(for screenPoint: NSPoint) -> Point {
+        Point(x: (screenPoint.x - frame.minX) / frame.width, y: (frame.maxY - screenPoint.y) / frame.height)
     }
 }
