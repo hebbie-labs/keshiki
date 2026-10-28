@@ -33,7 +33,7 @@ extension PondWorld {
         food.remove(at: index)
     }
 
-    func drawFood(on canvas: PixelBuffer) {
+    func drawFood(on canvas: Canvas) {
         for pellet in food { canvas.fillRect(pellet.position, width: 2, height: 2, Self.pelletColor) }
     }
 }

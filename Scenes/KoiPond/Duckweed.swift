@@ -46,7 +46,7 @@ extension PondWorld {
         duckweed.filter { !$0.isEaten }.randomElement()?.position
     }
 
-    func drawDuckweed(on canvas: PixelBuffer) {
+    func drawDuckweed(on canvas: Canvas) {
         for leaf in duckweed where !leaf.isEaten { canvas.fillRect(leaf.position, width: 2, height: 2, leaf.color) }
     }
 }

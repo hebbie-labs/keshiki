@@ -1,35 +1,25 @@
 import Foundation
 
-/// The bright, wobbling net of light on the pond floor. Precomputed once as a seamless looping tile.
+/// A bright, wobbling net of light on a water floor. Precomputed once as a seamless looping tile,
+/// then drawn by the GPU's backdrop shader.
 enum Caustics {
     private static let tileSize = 256
     private static let frameCount = 32
     private static let cellCount = 30
     private static let framesPerSecond = 8.0
     private static let warpStrength = 9.0
-    private static let faint = Color(0xeafff5, alpha: 0.07)
-    private static let bright = Color(0xeafff5, alpha: 0.17)
+    /// The colour of the light; the shader blends it in at two strengths.
+    static let light = Color(0xeafff5)
 
-    /// Brightness 0, 1 or 2 per pixel, per frame.
-    private static let frames: [[UInt8]] = makeFrames()
-
-    static func draw(on canvas: PixelBuffer, time: Double) {
-        let frame = frames[Int(time * framesPerSecond) % frameCount]
+    /// Which frame to show and how far the tile has drifted, at a moment in the scene.
+    static func frame(at time: Double) -> CausticsFrame {
         let drift = Int(time * 2)
-        let mask = tileSize - 1
-        let width = canvas.width
-        canvas.pixels.withUnsafeMutableBufferPointer { pixels in
-            for y in 0..<canvas.height {
-                let row = ((y + drift / 2) & mask) * tileSize
-                for x in 0..<width {
-                    switch frame[row + ((x + drift) & mask)] {
-                    case 1: pixels[y * width + x] = faint.over(pixels[y * width + x])
-                    case 2: pixels[y * width + x] = bright.over(pixels[y * width + x])
-                    default: break
-                    }
-                }
-            }
-        }
+        return CausticsFrame(index: Int(time * framesPerSecond) % frameCount, driftX: drift, driftY: drift / 2)
+    }
+
+    /// Brightness 0, 1 or 2 per tile pixel, per frame; uploaded to the GPU once and then dropped.
+    static func makeTile() -> (size: Int, frames: [[UInt8]]) {
+        (tileSize, makeFrames())
     }
 
     /// Lines appear where a pixel is about equally close to two cell centres (Voronoi edges).
@@ -73,4 +63,10 @@ enum Caustics {
         }
         return second - nearest
     }
+}
+
+struct CausticsFrame {
+    let index: Int
+    let driftX: Int
+    let driftY: Int
 }

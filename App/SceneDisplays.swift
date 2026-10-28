@@ -18,19 +18,19 @@ final class SceneDisplays {
         guard kind != self.kind || windows.map(\.frame) != NSScreen.screens.map(\.frame) else { return }
         self.kind = kind
         windows.forEach { $0.close() }
-        windows = NSScreen.screens.map { screen in
+        windows = NSScreen.screens.compactMap { screen in
             let scene = kind.make(aspectRatio: screen.frame.width / screen.frame.height, settings: settings)
             configure(scene)
             return SceneWindow(screen: screen, scene: scene)
         }
     }
 
-    /// Moves every scene forward; only draws the ones someone can see.
-    func advance(by dt: Double, drawHiddenScenes: Bool) {
-        for window in windows {
-            window.scene.advance(by: dt)
-            if drawHiddenScenes || window.isShowing { window.drawNextFrame() }
-        }
+    /// Moves the scenes that should run forward and draws them in one GPU submission.
+    /// The rest keep their last frame on screen and don't simulate either, so they cost nothing.
+    func advance(by dt: Double, where shouldRun: (SceneWindow) -> Bool) {
+        let running = windows.filter(shouldRun)
+        running.forEach { $0.scene.advance(by: dt) }
+        SceneRenderer.render(running.map(\.renderJob))
     }
 
     func window(at screenPoint: NSPoint) -> SceneWindow? {

@@ -35,7 +35,7 @@ final class Frog {
         }
     }
 
-    func draw(on canvas: PixelBuffer, time: Double) {
+    func draw(on canvas: Canvas, time: Double) {
         let (position, lift) = positionAndLift(at: time)
         canvas.disc(Point(x: position.x + 3 + lift * 0.3, y: position.y + 4 + lift * 0.4), radius: 6, Color(0x0b2e26, alpha: 0.3))
         let top = Point(x: position.x, y: position.y - lift)
@@ -66,8 +66,7 @@ final class Frog {
 
     private func positionAndLift(at time: Double) -> (Point, Double) {
         guard let jump else {
-            let surface = pad.surface(at: time)
-            return (Point(x: surface.x - 2, y: surface.y), 0)
+            return (Point(x: pad.center.x - 2, y: pad.center.y), 0)
         }
         let t = jump.progress
         let position = Point(x: jump.from.center.x + (jump.to.center.x - jump.from.center.x) * t,

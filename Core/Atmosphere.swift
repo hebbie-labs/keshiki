@@ -44,13 +44,13 @@ final class Atmosphere {
     private static let fireflyCount = 24
     private static let rainDimming = Color(0x283c50, alpha: 0.16)
 
-    func draw(on canvas: PixelBuffer, size: SceneSize, timeOfDay: TimeOfDay, raining: Bool, time: Double) {
+    func draw(on canvas: Canvas, size: SceneSize, timeOfDay: TimeOfDay, raining: Bool, time: Double) {
         canvas.cover(with: timeOfDay.tint)
         if raining { canvas.cover(with: Self.rainDimming) }
         if timeOfDay.hasFireflies { drawFireflies(on: canvas, size: size, time: time) } else { fireflies.removeAll() }
     }
 
-    private func drawFireflies(on canvas: PixelBuffer, size: SceneSize, time: Double) {
+    private func drawFireflies(on canvas: Canvas, size: SceneSize, time: Double) {
         while fireflies.count < Self.fireflyCount {
             fireflies.append(Firefly(position: size.randomPoint(marginX: 0), drift: Point(x: random(-0.3...0.3), y: random(-0.3...0.3)), phase: random(0...6.28)))
         }

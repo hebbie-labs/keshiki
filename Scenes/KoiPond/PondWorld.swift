@@ -48,16 +48,14 @@ final class PondWorld {
         updateRipples(dt: dt)
     }
 
-    /// Floor light first, then what swims below, and what floats on top. The scene adds the sky.
-    func draw(on canvas: PixelBuffer, time: Double) {
-        Caustics.draw(on: canvas, time: time)
+    /// What swims below, then what floats on top. The floor (and its light) is the backdrop; the scene adds the sky.
+    func draw(on canvas: Canvas, time: Double) {
         kois.forEach { $0.drawShadow(on: canvas) }
-        pads.forEach { $0.drawShadow(on: canvas, time: time) }
         schools.forEach { $0.draw(on: canvas) }
         kois.forEach { $0.draw(on: canvas) }
         drawFood(on: canvas)
         drawDuckweed(on: canvas)
-        pads.forEach { $0.draw(on: canvas, time: time) }
+        canvas.placeOverlay()
         frog.draw(on: canvas, time: time)
         ball?.draw(on: canvas)
         goose?.draw(on: canvas, time: time)

@@ -4,7 +4,7 @@ SAVER    := build/$(APP_NAME).saver
 VERSION  := $(shell /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' App/Info.plist)
 DMG      := build/$(APP_NAME)-$(VERSION).dmg
 ENGINE   := $(wildcard Core/*.swift Scenes/*.swift Scenes/*/*.swift)
-SWIFTC   := swiftc -O -swift-version 5 -target arm64-apple-macos14.0
+SWIFTC   := swiftc -O -enforce-exclusivity=unchecked -swift-version 5 -target arm64-apple-macos14.0
 
 .PHONY: app saver dmg run test clean
 

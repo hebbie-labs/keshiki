@@ -32,9 +32,15 @@ its first launch.
   lock screen shows; it follows the time of day and your own picture comes back
   when you quit. *Install Screensaver…* adds the animated scene as a system
   screensaver too.
-- **Light on memory:** drawn natively into a small pixel buffer, about 40 MB
-  for three displays. Scenes hidden behind windows aren't drawn, and it can
-  rest on battery.
+- **Only where you can see it:** a display's scene plays while its desktop is
+  free. As soon as any app window lies on that display (focused or not), or the
+  desktop is covered, it rests: the last frame stays, and nothing is simulated
+  or drawn there. It can rest on battery too.
+- **Light on the machine:** drawn on the GPU with Metal at 1440 px wide and
+  scaled up with crisp pixels. Measured on an Apple Silicon Mac: about 2 % CPU
+  and 1 % GPU per playing display at 30 fps (4 % CPU for the whole app with one
+  display playing), and about 200 MB of memory, ~113 MB of which is the fixed
+  cost of using Metal at all.
 
 ## Koi Pond
 
@@ -64,15 +70,25 @@ The version comes from `CFBundleShortVersionString` in `App/Info.plist`.
 
 ## Structure
 
-- `Core/` — shared by every scene: `LivingScene` (what a scene must do),
-  `PixelBuffer` (drawn every frame, scaled up with nearest-neighbour),
-  `Atmosphere` (time of day, rain, fireflies) and `KeshikiSettings`.
+- `Core/` — shared by every scene.
+  - `LivingScene` is what a scene must do; scenes draw into a `Canvas` in
+    design units (960 wide) and render at `pixelScale` (1.5 → 1440 px).
+  - `DrawList` records each frame as rectangles and discs; `SceneRenderer`
+    draws them on the GPU as instanced quads (`Shaders`), over the scene's
+    painted backdrop with the `Caustics` light net, with a static overlay in
+    between (stored as a palette texture). All displays share one GPU
+    submission per frame.
+  - `PixelBuffer` paints the static layers once on the CPU; their CPU copies
+    are dropped after upload.
+  - `Atmosphere` (time of day, rain, fireflies) and `KeshikiSettings`.
 - `Scenes/` — `SceneKind` lists every scene; each has its own folder.
   - `KoiPond/` — `KoiPondScene` owns a `PondWorld` (`Koi`, `FishSchool`,
     `Frog`, `Goose`, `Ball`, `LilyPad`, duckweed, food, ripples), the painted
-    `PondFloor`, `Caustics`, the learning in `KoiMemory` and `KoiPondSettings`.
+    `PondFloor` (backdrop) and lily pads (overlay), the learning in `KoiMemory`
+    and `KoiPondSettings`.
 - `App/` — the menu bar app (AppKit, no Xcode project needed).
   - `KeshikiController` wires everything and runs the 30 fps frame timer.
+  - `WindowWatcher` knows which displays have app windows on them.
   - `SceneDisplays` / `SceneWindow` / `SceneView` keep one borderless window
     per display at desktop level.
   - `SceneControls` is what a scene adds to the app: `KoiPondControls` holds
@@ -83,7 +99,8 @@ The version comes from `CFBundleShortVersionString` in `App/Info.plist`.
   - `StatusMenu` / `MenuEntry` build the menu; `SettingsStore` persists
     settings and migrates from Wallpapers 1.x.
 - `Saver/` — `KeshikiSaverView`, the scenes as a `.saver` bundle.
-- `Tests/` — runnable checks (learning, time of day, settings migration, drawing).
+- `Tests/` — runnable checks (learning, time of day, settings migration,
+  drawing, and that the GPU draws pixel for pixel like the CPU).
 - `Assets/` — app icon.
 
 To add a scene: a folder under `Scenes/` with a class conforming to
