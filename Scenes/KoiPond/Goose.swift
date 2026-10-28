@@ -38,7 +38,7 @@ final class Goose {
         return !(isLeaving && !world.size.contains(position, margin: 40))
     }
 
-    func draw(on canvas: PixelBuffer, time: Double) {
+    func draw(on canvas: Canvas, time: Double) {
         let along = Point(x: cos(heading) * Self.scale, y: sin(heading) * Self.scale)
         drawBody(on: canvas, along: along)
         drawNeckAndHead(on: canvas, along: along, bend: sin(time * 1.3) * 0.25)
@@ -59,7 +59,7 @@ final class Goose {
         world.addRipple(at: position.moved(by: -14, heading: heading), radius: 3, life: 0.6)
     }
 
-    private func drawBody(on canvas: PixelBuffer, along: Point) {
+    private func drawBody(on canvas: Canvas, along: Point) {
         func spine(_ i: Double) -> Point { Point(x: position.x + along.x * i * 3, y: position.y + along.y * i * 3) }
         for i in -3...3 {
             let point = spine(Double(i))
@@ -74,7 +74,7 @@ final class Goose {
         }
     }
 
-    private func drawNeckAndHead(on canvas: PixelBuffer, along: Point, bend: Double) {
+    private func drawNeckAndHead(on canvas: Canvas, along: Point, bend: Double) {
         let neckHeading = heading + bend
         var point = Point(x: position.x + along.x * 10, y: position.y + along.y * 10)
         for _ in 0..<5 {

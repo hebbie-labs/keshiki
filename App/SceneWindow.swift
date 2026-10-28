@@ -3,11 +3,14 @@ import AppKit
 /// A borderless window showing one scene on one display, normally tucked behind the desktop icons.
 final class SceneWindow: NSWindow {
     let scene: LivingScene
+    private let renderer: SceneRenderer
     private let sceneView: SceneView
 
-    init(screen: NSScreen, scene: LivingScene) {
+    init?(screen: NSScreen, scene: LivingScene) {
+        guard let renderer = SceneRenderer(scene: scene) else { return nil }
         self.scene = scene
-        sceneView = SceneView(frame: NSRect(origin: .zero, size: screen.frame.size))
+        self.renderer = renderer
+        sceneView = SceneView(frame: NSRect(origin: .zero, size: screen.frame.size), pixelWidth: scene.pixelWidth, pixelHeight: scene.pixelHeight)
         super.init(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
         isReleasedWhenClosed = false
         contentView = sceneView
@@ -19,9 +22,19 @@ final class SceneWindow: NSWindow {
     /// Borderless windows normally can't become key, but the screensaver needs key presses.
     override var canBecomeKey: Bool { true }
 
-    /// False while other windows cover the whole display; no point drawing then.
+    /// False while other windows cover the whole display.
     var isShowing: Bool {
         occlusionState.contains(.visible)
+    }
+
+    /// This display's share of the next frame.
+    var renderJob: SceneRenderer.Job {
+        SceneRenderer.Job(renderer: renderer, scene: scene, layer: sceneView.metalLayer)
+    }
+
+    /// A still of the current frame, e.g. for the lock screen.
+    func snapshot() -> CGImage? {
+        renderer.snapshot(scene)
     }
 
     func sitBehindDesktopIcons() {
@@ -35,10 +48,6 @@ final class SceneWindow: NSWindow {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         ignoresMouseEvents = false
         orderFrontRegardless()
-    }
-
-    func drawNextFrame() {
-        sceneView.show(scene.render())
     }
 
     func showCaption(_ text: String, at spot: Point) {

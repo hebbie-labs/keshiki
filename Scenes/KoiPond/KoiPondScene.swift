@@ -1,14 +1,14 @@
-import CoreGraphics
 import Foundation
 
-/// The koi pond sized for one display: the pond's world, its painted floor, and the canvas it's drawn into.
+/// The koi pond sized for one display: the pond's world and its painted floor.
 final class KoiPondScene: LivingScene {
-    static let pixelWidth = 960.0
+    static let designWidth = 960.0
+    let pixelScale = 1.5
 
     let world: PondWorld
-    private let canvas: PixelBuffer
     private let atmosphere = Atmosphere()
-    private var floor: PixelBuffer
+    private var newFloor: PixelBuffer?
+    private var newOverlay: PixelBuffer?
     private var floorWater: String
     private var time = 0.0
     var systemDark = false
@@ -16,13 +16,13 @@ final class KoiPondScene: LivingScene {
     var onFeed: ((Point) -> Void)?
 
     init(aspectRatio: Double, settings: KeshikiSettings, options: KoiPondSettings = KoiPondSettings()) {
-        let size = SceneSize(width: Self.pixelWidth, height: (Self.pixelWidth / max(aspectRatio, 0.1)).rounded())
+        let size = SceneSize(width: Self.designWidth, height: (Self.designWidth / max(aspectRatio, 0.1)).rounded())
         self.settings = settings
         world = PondWorld(size: size, options: options)
         world.raining = settings.rain
-        canvas = PixelBuffer(width: Int(size.width), height: Int(size.height))
-        floor = PondFloor.paint(size: size, waterName: options.water)
         floorWater = options.water
+        newFloor = PondFloor.paint(size: size, scale: pixelScale, waterName: options.water, pads: world.pads)
+        newOverlay = paintLilyPads()
     }
 
     var settings: KeshikiSettings {
@@ -37,17 +37,30 @@ final class KoiPondScene: LivingScene {
         }
     }
 
+    var pixelWidth: Int { Int((world.size.width * pixelScale).rounded()) }
+    var pixelHeight: Int { Int((world.size.height * pixelScale).rounded()) }
+
+    var caustics: CausticsFrame? { Caustics.frame(at: time) }
+
     func advance(by dt: Double) {
         time += dt
         world.update(dt: dt)
     }
 
-    func render(at date: Date) -> CGImage? {
-        canvas.copyPixels(from: floor)
+    func takeNewBackdrop() -> PixelBuffer? {
+        defer { newFloor = nil }
+        return newFloor
+    }
+
+    func takeNewOverlay() -> PixelBuffer? {
+        defer { newOverlay = nil }
+        return newOverlay
+    }
+
+    func draw(on canvas: Canvas, at date: Date) {
         world.draw(on: canvas, time: time)
         let timeOfDay = TimeOfDay.current(theme: settings.theme, systemDark: systemDark, date: date)
         atmosphere.draw(on: canvas, size: world.size, timeOfDay: timeOfDay, raining: settings.rain, time: time)
-        return canvas.makeImage()
     }
 
     func touch(at spot: Point, withOption: Bool) {
@@ -60,14 +73,21 @@ final class KoiPondScene: LivingScene {
         }
     }
 
-    /// Converts a 0...1 position on the display into pond pixels.
+    /// Converts a 0...1 position on the display into pond coordinates.
     func pondPoint(fromNormalized point: Point) -> Point {
         Point(x: point.x * world.size.width, y: point.y * world.size.height)
     }
 
     private func repaintFloorIfWaterChanged() {
         guard options.water != floorWater else { return }
-        floor = PondFloor.paint(size: world.size, waterName: options.water)
+        newFloor = PondFloor.paint(size: world.size, scale: pixelScale, waterName: options.water, pads: world.pads)
         floorWater = options.water
+    }
+
+    /// The lily pads float above the fish and never move, so they're painted once into a transparent layer.
+    private func paintLilyPads() -> PixelBuffer {
+        let overlay = PixelBuffer(width: pixelWidth, height: pixelHeight, scale: pixelScale, color: nil)
+        world.pads.forEach { $0.draw(on: overlay) }
+        return overlay
     }
 }

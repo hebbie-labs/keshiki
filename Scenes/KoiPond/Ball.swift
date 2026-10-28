@@ -37,7 +37,7 @@ final class Ball {
         spin += hypot(velocity.x, velocity.y) * dt * 0.4
     }
 
-    func draw(on canvas: PixelBuffer) {
+    func draw(on canvas: Canvas) {
         canvas.disc(Point(x: position.x + 4, y: position.y + 5), radius: Self.radius, Color(0x0b2e26, alpha: 0.3))
         canvas.disc(position, radius: Self.radius, Color(0xf3ede0))
         for thread in 0..<6 {

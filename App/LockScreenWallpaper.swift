@@ -16,7 +16,7 @@ final class LockScreenWallpaper {
         let stamp = Int(Date().timeIntervalSince1970)
         var current: Set<URL> = []
         for window in windows {
-            guard let screen = window.screen, let image = window.scene.render(), let id = screen.displayID else { continue }
+            guard let screen = window.screen, let image = window.snapshot(), let id = screen.displayID else { continue }
             let url = folder.appendingPathComponent("scene-\(id)-\(stamp).png")
             guard write(image, scaledToFill: screen, to: url) else { continue }
             try? NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])

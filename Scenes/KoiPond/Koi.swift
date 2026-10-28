@@ -197,14 +197,17 @@ final class Koi {
         let direction: Double
     }
 
-    func drawShadow(on canvas: PixelBuffer) {
-        let outline = bodyOutline(offset: Self.shadowOffset)
-        drawFins(outline, on: canvas, color: Self.shadow)
-        drawBody(outline, on: canvas, color: Self.shadow, widen: 0)
+    private var outline: [Segment] = []
+
+    /// The shadow is drawn first (below every fish), so it also works out the swimming body for `draw`.
+    func drawShadow(on canvas: Canvas) {
+        updateOutline()
+        let shadow = outline.map { Segment(point: Point(x: $0.point.x + Self.shadowOffset.x, y: $0.point.y + Self.shadowOffset.y), direction: $0.direction) }
+        drawFins(shadow, on: canvas, color: Self.shadow)
+        drawBody(shadow, on: canvas, color: Self.shadow, widen: 0)
     }
 
-    func draw(on canvas: PixelBuffer) {
-        let outline = bodyOutline(offset: Point(x: 0, y: 0))
+    func draw(on canvas: Canvas) {
         drawFins(outline, on: canvas, color: Self.fin)
         drawBody(outline, on: canvas, color: Self.outline, widen: 1)
         drawBody(outline, on: canvas, color: variety.base, widen: 0)
@@ -216,17 +219,17 @@ final class Koi {
     }
 
     /// Segment centres with the swimming wave applied sideways, plus each segment's direction.
-    private func bodyOutline(offset: Point) -> [Segment] {
-        body.indices.map { index in
+    private func updateOutline() {
+        outline.removeAll(keepingCapacity: true)
+        for index in body.indices {
             let ahead = body[max(0, index - 1)], behind = body[min(Self.segments - 1, index + 1)]
             let direction = behind.heading(to: ahead)
             let sway = sin(tailPhase - Double(index) * 0.7) * (Double(index) / Double(Self.segments)) * 3 * size
-            let point = body[index].moved(by: sway, heading: direction + .pi / 2)
-            return Segment(point: Point(x: point.x + offset.x, y: point.y + offset.y), direction: direction)
+            outline.append(Segment(point: body[index].moved(by: sway, heading: direction + .pi / 2), direction: direction))
         }
     }
 
-    private func drawFins(_ outline: [Segment], on canvas: PixelBuffer, color: Color) {
+    private func drawFins(_ outline: [Segment], on canvas: Canvas, color: Color) {
         let shoulder = outline[2], flap = sin(tailPhase * 0.7) * 0.35
         for side in [-1.0, 1.0] {
             let angle = shoulder.direction + side * (2.1 + flap)
@@ -245,7 +248,7 @@ final class Koi {
     }
 
     /// Discs per segment plus one between neighbours, so the thin tail doesn't look dotted.
-    private func drawBody(_ outline: [Segment], on canvas: PixelBuffer, color: Color, widen: Double) {
+    private func drawBody(_ outline: [Segment], on canvas: Canvas, color: Color, widen: Double) {
         for index in stride(from: Self.segments - 1, through: 0, by: -1) {
             canvas.disc(outline[index].point, radius: Self.bodyWidths[index] * size + widen, color)
             guard index < Self.segments - 1 else { continue }
@@ -255,7 +258,7 @@ final class Koi {
         }
     }
 
-    private func drawPatches(_ outline: [Segment], on canvas: PixelBuffer) {
+    private func drawPatches(_ outline: [Segment], on canvas: Canvas) {
         for index in stride(from: Self.segments - 1, through: 1, by: -1) {
             guard let patch = patches[index] else { continue }
             let width = Self.bodyWidths[index] * size
@@ -264,7 +267,7 @@ final class Koi {
         if let crown = variety.crown { canvas.disc(outline[1].point, radius: 3 * size, crown) }
     }
 
-    private func drawFace(_ outline: [Segment], on canvas: PixelBuffer) {
+    private func drawFace(_ outline: [Segment], on canvas: Canvas) {
         for index in 1..<8 { canvas.plot(outline[index].point, Color(0xffffff, alpha: 0.18)) }
         for side in [-1.0, 1.0] { canvas.plot(outline[0].point.moved(by: 3.4 * size, heading: heading + side * 1.2), Color(0x111111)) }
     }

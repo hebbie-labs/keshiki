@@ -82,7 +82,7 @@ final class FishSchool {
         for index in fish.indices { swim(index, in: world, dt: dt) }
     }
 
-    func draw(on canvas: PixelBuffer) {
+    func draw(on canvas: Canvas) {
         for member in fish { draw(member, on: canvas) }
     }
 
@@ -152,17 +152,20 @@ final class FishSchool {
     // MARK: - Drawing
 
     /// The spine bends with the turn and ripples towards the tail as the fish swims.
+    /// Reuses one buffer for every fish, so drawing a school allocates nothing.
+    private var spineBuffer: [(point: Point, direction: Double)] = []
+
     private func spine(of member: Fish) -> [(point: Point, direction: Double)] {
         var point = member.position
-        var result: [(Point, Double)] = []
+        spineBuffer.removeAll(keepingCapacity: true)
         for step in 0..<species.length {
             let t = Double(step) / Double(species.length - 1)
             let wave = sin(member.tailPhase - t * 4) * t * t * 0.9
             let direction = member.heading - member.turning * t * 6 + wave
-            result.append((point, direction))
+            spineBuffer.append((point, direction))
             point = point.moved(by: -1, heading: direction)
         }
-        return result
+        return spineBuffer
     }
 
     /// Widest just behind the head, tapering into the tail.
@@ -171,7 +174,7 @@ final class FishSchool {
         return species.halfWidth * profile
     }
 
-    private func draw(_ member: Fish, on canvas: PixelBuffer) {
+    private func draw(_ member: Fish, on canvas: Canvas) {
         let points = spine(of: member)
         let bodyEnd = species.length - 3
         for (step, segment) in points.enumerated() where step < bodyEnd {
@@ -195,7 +198,7 @@ final class FishSchool {
         for side in [-1.0, 1.0] { canvas.plot(points[1].point.moved(by: side * species.halfWidth * 0.8, heading: points[1].direction + .pi / 2), Self.eye) }
     }
 
-    private func drawTail(_ points: [(point: Point, direction: Double)], from start: Int, on canvas: PixelBuffer) {
+    private func drawTail(_ points: [(point: Point, direction: Double)], from start: Int, on canvas: Canvas) {
         for step in start..<species.length {
             let spread = Double(step - start) + 0.5
             let segment = points[step]
@@ -203,14 +206,14 @@ final class FishSchool {
         }
     }
 
-    private func drawPectoralFins(_ points: [(point: Point, direction: Double)], on canvas: PixelBuffer) {
+    private func drawPectoralFins(_ points: [(point: Point, direction: Double)], on canvas: Canvas) {
         let shoulder = points[3]
         for side in [-1.0, 1.0] {
             canvas.plot(shoulder.point.moved(by: species.halfWidth + 1, heading: shoulder.direction + side * 2.2), species.fin)
         }
     }
 
-    private func drawMarking(at point: Point, across: Double, step: Int, half: Double, on canvas: PixelBuffer) {
+    private func drawMarking(at point: Point, across: Double, step: Int, half: Double, on canvas: Canvas) {
         switch species.markingStyle {
         case .none:
             break

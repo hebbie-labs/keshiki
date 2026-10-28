@@ -9,6 +9,7 @@ final class KeshikiController: NSObject, NSApplicationDelegate {
     private let displays = SceneDisplays()
     private let screensaver = Screensaver()
     private let lockScreen = LockScreenWallpaper()
+    private let appWindows = WindowWatcher()
     private var controls: SceneControls?
     private var controlsKind: SceneKind?
     private var statusMenu: StatusMenu?
@@ -55,12 +56,17 @@ final class KeshikiController: NSObject, NSApplicationDelegate {
         settings.paused || (settings.restOnBattery && onBattery && !screensaver.isRunning)
     }
 
+    /// A display's scene runs only while its desktop is free: no app window open on it and not covered.
+    private func shouldRun(_ window: SceneWindow) -> Bool {
+        screensaver.isRunning || (window.isShowing && !appWindows.hasWindows(on: window.frame))
+    }
+
     private func drawFrame() {
         let now = Date()
         let dt = min(Self.longestFrame, now.timeIntervalSince(lastFrame))
         lastFrame = now
         guard !isResting else { return }
-        displays.advance(by: dt, drawHiddenScenes: screensaver.isRunning)
+        displays.advance(by: dt, where: shouldRun)
     }
 
     // MARK: - Settings and system
@@ -106,7 +112,9 @@ final class KeshikiController: NSObject, NSApplicationDelegate {
     }
 
     /// The desktop belongs to Finder, so clicks never reach our windows; we watch them and pass them on.
+    /// A click may also have closed or moved a window, so the window watcher looks again.
     private func forwardDesktopClick(_ event: NSEvent) {
+        appWindows.refresh()
         guard !screensaver.isRunning else { return }
         let location = NSEvent.mouseLocation
         guard let window = displays.window(at: location),
@@ -114,8 +122,10 @@ final class KeshikiController: NSObject, NSApplicationDelegate {
         window.scene.touch(at: window.normalizedPoint(for: location), withOption: event.modifierFlags.contains(.option))
     }
 
+    /// A little tolerance lets macOS fire the timer together with other wake-ups, which saves energy.
     private func repeatEvery(_ interval: TimeInterval, startNow: Bool = false, _ action: @escaping () -> Void) {
         let timer = Timer(timeInterval: interval, repeats: true) { _ in action() }
+        timer.tolerance = interval * 0.2
         RunLoop.main.add(timer, forMode: .common)
         if startNow { DispatchQueue.main.async(execute: action) }
     }

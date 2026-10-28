@@ -57,15 +57,58 @@ let general = try! JSONDecoder().decode(KeshikiSettings.self, from: wallpapers)
 check(general.theme == "night" && general.rain && !general.showOnLockScreen && general.scene == .koiPond, "Wallpapers 1.x settings carry over")
 check(try! JSONDecoder().decode(KoiPondSettings.self, from: wallpapers).mood == "playful", "the koi fields carry over from the same data")
 
-// Rendering
+// Drawing
 let tiny = PixelBuffer(width: 10, height: 10)
 tiny.fillRect(Point(x: 3, y: -20), width: 2, height: 2, Color(0xffffff))
 tiny.fillRect(Point(x: 40, y: 3), width: 2, height: 2, Color(0xffffff))
 tiny.heart(Point(x: 5, y: -30), opacity: 1)
 check(tiny.pixels.allSatisfy { $0 == Color(0x000000).packed }, "drawing off the canvas is ignored instead of crashing")
-let scene = SceneKind.koiPond.make(aspectRatio: 16.0 / 10.0, settings: KeshikiSettings())
-for _ in 0..<90 { scene.advance(by: 1.0 / 30) }
-let frame = scene.render()
-check(frame?.width == 960 && frame?.height == 600, "a 16:10 pond renders at 960×600")
+
+let scaled = PixelBuffer(width: 30, height: 30, scale: 1.5)
+scaled.plot(Point(x: 2, y: 2), Color(0xffffff))
+let lit = scaled.pixels.indices.filter { scaled.pixels[$0] != Color(0x000000).packed }.map { ($0 % 30, $0 / 30) }
+// x = 2 design → 3 ..< round(4.5) = 5 device pixels, the same vertically.
+check(lit.map(\.0).min() == 3 && lit.map(\.0).max() == 4 && lit.count == 4, "a design pixel lands on whole device pixels")
+
+/// A scene with one disc on black, to check the GPU draws exactly what the CPU painter would.
+final class DiscScene: LivingScene {
+    var settings = KeshikiSettings()
+    var systemDark = false
+    let pixelWidth = 64, pixelHeight = 64, pixelScale = 1.5
+    var caustics: CausticsFrame? { nil }
+    private var backdrop: PixelBuffer? = PixelBuffer(width: 64, height: 64)
+    func advance(by dt: Double) {}
+    func takeNewBackdrop() -> PixelBuffer? { defer { backdrop = nil }; return backdrop }
+    private var overlay: PixelBuffer? = {
+        let layer = PixelBuffer(width: 64, height: 64, scale: 1.5, color: nil)
+        layer.fillRect(Point(x: 40, y: 40), width: 6, height: 4, Color(0x2d6a3a))
+        return layer
+    }()
+    func takeNewOverlay() -> PixelBuffer? { defer { overlay = nil }; return overlay }
+    func draw(on canvas: Canvas, at date: Date) {
+        canvas.disc(Point(x: 20.3, y: 19.6), radius: 9.4, Color(0xe0412f))
+        canvas.fillRect(Point(x: 2, y: 2), width: 3, height: 1, Color(0x2f86e8))
+        canvas.placeOverlay()
+    }
+    func touch(at spot: Point, withOption: Bool) {}
+}
+
+if SceneRenderer.isAvailable {
+    let discScene = DiscScene()
+    let gpu = SceneRenderer(scene: discScene)!.snapshot(discScene)
+    let cpu = PixelBuffer(width: 64, height: 64, scale: 1.5)
+    discScene.draw(on: cpu, at: Date())
+    cpu.fillRect(Point(x: 40, y: 40), width: 6, height: 4, Color(0x2d6a3a))
+    var gpuPixels = PixelBuffer(width: 64, height: 64).pixels
+    if let gpu, let data = gpu.dataProvider?.data as Data? { gpuPixels = data.withUnsafeBytes { Array($0.bindMemory(to: UInt32.self)) } }
+    check(gpuPixels.map { $0 | 0xff00_0000 } == cpu.pixels, "the GPU draws discs, rectangles and the overlay pixel for pixel like the CPU")
+
+    let scene = SceneKind.koiPond.make(aspectRatio: 16.0 / 10.0, settings: KeshikiSettings())
+    for _ in 0..<90 { scene.advance(by: 1.0 / 30) }
+    let frame = SceneRenderer(scene: scene)!.snapshot(scene)
+    check(frame?.width == 1440 && frame?.height == 900, "a 16:10 pond renders at 1440×900")
+} else {
+    print("– no Metal device, GPU checks skipped")
+}
 
 exit(failures == 0 ? 0 : 1)

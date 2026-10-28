@@ -30,7 +30,7 @@ extension PondWorld {
         ripples.removeAll { $0.life <= 0 }
     }
 
-    func drawRipples(on canvas: PixelBuffer) {
+    func drawRipples(on canvas: Canvas) {
         for ripple in ripples {
             canvas.ring(ripple.center, radius: ripple.radius, Color(0xdcfff0, alpha: ripple.life * 0.55))
         }
