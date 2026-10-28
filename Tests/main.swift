@@ -75,10 +75,12 @@ let pushed = pondWorld.pads[0].offset
 for _ in 0..<900 { pondWorld.update(dt: 1.0 / 30) }
 check(hypot(pushed.x, pushed.y) > 1 && pondWorld.pads.allSatisfy { hypot($0.offset.x, $0.offset.y) < 12 }, "waves push the lily pads and their stems pull them back")
 
-pondWorld.splash(at: Point(x: 400, y: 300), droplets: 10, power: 50)
-let thrown = pondWorld.droplets.count
-for _ in 0..<60 { pondWorld.update(dt: 1.0 / 30) }
-check(thrown == 10 && pondWorld.droplets.isEmpty, "a splash throws droplets that fall back into the water")
+// A fresh pond: its frog rests at least ten seconds before its first jump (and splash).
+let splashWorld = PondWorld(size: SceneSize(width: 960, height: 600), options: KoiPondSettings())
+splashWorld.splash(at: Point(x: 400, y: 300), droplets: 10, power: 50)
+let thrown = splashWorld.droplets.count
+for _ in 0..<60 { splashWorld.update(dt: 1.0 / 30) }
+check(thrown == 10 && splashWorld.droplets.isEmpty, "a splash throws droplets that fall back into the water")
 let reeds = Reeds.make(size: SceneSize(width: 960, height: 600), scale: 1.5)
 check(!reeds.sprites.isEmpty && reeds.sprites.allSatisfy { $0.root.y < 600 * 0.8 && $0.x + $0.width <= reeds.sheet.width },
       "reeds stand along the far and side edges, never in front, each cut from the sheet")
