@@ -27,7 +27,8 @@ Requires macOS 14 or later on Apple Silicon. Wallpapers lives in the menu bar
   tiny fish, grazing duckweed, lotus shade, the frog, the ball or the goose.
 - **A living pond.** Clear water with a wobbling net of sunlight on the floor,
   shafts of light, water plants along the shallow edges, deep shadows under
-  the lily pads, and schools of ember, neon and citrus fish.
+  the lily pads, and schools of Japanese pond fish (hime-medaka, tanago
+  bitterlings, oikawa and motsugo) that swim in bursts and glides.
 - **They learn your routine.** Feed them at the same spot around the same time
   on two different days and they'll be waiting there.
 - **A good-morning greeting.** The first time you see the pond each day they

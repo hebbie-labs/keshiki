@@ -28,7 +28,7 @@ final class World {
         self.settings = settings
         pads = LilyPad.scatter(in: size)
         duckweed = World.scatterDuckweed(in: size)
-        schools = [.ember, .neon, .citrus].map { FishSchool(species: $0, in: size) }
+        schools = [.himedaka, .tanago, .oikawa, .motsugo].map { FishSchool(species: $0, in: size) }
         frog = Frog(pad: pads[0])
         kois = (0..<Self.koiCount).map { Koi(index: $0, in: size) }
     }
