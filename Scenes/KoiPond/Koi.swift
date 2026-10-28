@@ -53,9 +53,9 @@ final class Koi {
     /// How often a swimming koi stirs the surface above its back, and how fast it must swim for that.
     private static let wakeSeconds = 0.3
     private static let wakeSpeed = 0.5
-    /// How much of its last motion each body segment keeps, and how hard the body pulls itself straight.
-    private static let inertia = 0.82
-    private static let stiffness = 0.22
+    /// How much of its last sideways motion each body segment keeps, and how hard the body pulls itself straight.
+    private static let inertia = 0.55
+    private static let stiffness = 0.12
     private static let outline = Color(0x123a30, alpha: 0.35)
     private static let fin = Color(0xfaf0e6, alpha: 0.45)
 
@@ -188,14 +188,19 @@ final class Koi {
         heartCooldown = random(18...40)
     }
 
-    /// The body is a chain of points with inertia (Verlet): each segment keeps some of its own motion, stays one
-    /// segment behind its leader and straightens a little, so the tail swings out in a turn and settles behind.
+    /// The body is a chain of points with inertia (Verlet): each segment keeps some of its own sideways motion,
+    /// stays one segment behind its leader and straightens a little, so the tail swings out in a turn and settles
+    /// behind. Only sideways: carried forward, the segments would push into the ones ahead and buckle the body.
     private func followHead() {
         let length = Self.segmentLength * size
         for index in 1..<Self.segments {
-            let current = body[index]
-            body[index].x += (current.x - previousBody[index].x) * Self.inertia
-            body[index].y += (current.y - previousBody[index].y) * Self.inertia
+            let current = body[index], leader = body[index - 1]
+            let axisLength = max(current.distance(to: leader), 0.001)
+            let axis = Point(x: (leader.x - current.x) / axisLength, y: (leader.y - current.y) / axisLength)
+            let motion = Point(x: current.x - previousBody[index].x, y: current.y - previousBody[index].y)
+            let along = motion.x * axis.x + motion.y * axis.y
+            body[index].x += (motion.x - axis.x * along) * Self.inertia
+            body[index].y += (motion.y - axis.y * along) * Self.inertia
             previousBody[index] = current
         }
         for index in 1..<Self.segments {
