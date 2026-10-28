@@ -11,6 +11,7 @@ final class PondWorld {
     var raining = false
     var pads: [LilyPad]
     var duckweed: [DuckweedLeaf]
+    var seagrass: [SeagrassTuft]
     let schools: [FishSchool]
     let frog: Frog
     private(set) var kois: [Koi] = []
@@ -35,6 +36,7 @@ final class PondWorld {
         water = WaterSurface(obstacles: pads.map { WaterSurface.Disc(center: $0.center, radius: $0.radius) },
                              depth: { [size] in Self.shallowDepth + Self.depthRange * PondFloor.depth(x: $0.x, y: $0.y, size: size) })
         duckweed = PondWorld.scatterDuckweed(in: size)
+        seagrass = PondWorld.plantSeagrass(in: size)
         schools = [.himedaka, .tanago, .oikawa, .motsugo].map { FishSchool(species: $0, in: size) }
         frog = Frog()
         kois = (0..<Self.koiCount).map { Koi(index: $0, in: size) }
@@ -48,6 +50,7 @@ final class PondWorld {
         sinkOldFood(dt: dt)
         regrowDuckweed(dt: dt)
         moveFloating(dt: dt)
+        moveSeagrass(dt: dt)
         schools.forEach { $0.update(in: self, dt: dt) }
         kois.forEach { $0.update(in: self, dt: dt) }
         frog.update(in: self, dt: dt)
@@ -59,6 +62,7 @@ final class PondWorld {
     /// What swims below, then what floats on top. The floor is the backdrop; the water casts the shadows
     /// and the scene adds the sky.
     func draw(on canvas: Canvas, time: Double) {
+        drawSeagrass(on: canvas)
         schools.forEach { $0.draw(on: canvas) }
         kois.forEach { $0.draw(on: canvas) }
         canvas.placeSurface()

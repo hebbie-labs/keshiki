@@ -1,9 +1,10 @@
 import Foundation
 
-/// Paints the bare floor once: silt, pebbles and plants. The water over it, and the light and shadows
+/// Paints the bare floor once: silt, pebbles and cushions of moss and algae. The plants that move are drawn live
+/// (`Seagrass`, and the reeds standing at the edge). The water over it, and the light and shadows
 /// in it, are drawn live at the floor's depth.
 enum PondFloor {
-    private static let plantClusters = 24
+    private static let cushions = 46
 
     /// `scale` is device pixels per design unit; per-pixel effects are computed at full device resolution.
     static func paint(size: SceneSize, scale: Double, waterName: String) -> PixelBuffer {
@@ -12,7 +13,7 @@ enum PondFloor {
                                  scale: scale, color: palette.floor)
         paintSilt(on: canvas, palette: palette, scale: scale)
         paintPebbles(on: canvas, size: size, palette: palette)
-        for _ in 0..<plantClusters { paintPlant(on: canvas, at: plantSpot(in: size), palette: palette) }
+        for _ in 0..<cushions { paintCushion(on: canvas, at: plantSpot(in: size), palette: palette) }
         return canvas
     }
 
@@ -55,28 +56,16 @@ enum PondFloor {
         }
     }
 
-    /// An irregular clump of sprigs: curved stems with leaves that get lighter towards the tips.
-    private static func paintPlant(on canvas: PixelBuffer, at center: Point, palette: WaterPalette) {
-        let radius = random(14...38)
-        for _ in 0..<Int(radius * 1.3) {
-            let root = center.jittered(radius * 0.35)
-            paintSprig(on: canvas, from: root, length: random(radius * 0.4...radius * 1.1), heading: random(0...(2 * .pi)), palette: palette)
-        }
-    }
-
-    private static func paintSprig(on canvas: PixelBuffer, from root: Point, length: Double, heading: Double, palette: WaterPalette) {
-        let curl = random(-0.06...0.06)
-        var point = root, direction = heading
-        for step in 0..<Int(length) {
-            let progress = Double(step) / length
-            point = point.moved(by: 1, heading: direction)
-            direction += curl
-            canvas.plot(point, palette.plants[0])
-            for side in [-1.0, 1.0] where chance(0.7) {
-                let shade = min(palette.plants.count - 1, 1 + Int(progress * Double(palette.plants.count - 1) + random(0...1.5)))
-                let leaf = point.moved(by: random(1.5...3.5), heading: direction + side * random(0.8...1.5))
-                canvas.disc(leaf, radius: random(1.0...2.4) * (1.25 - progress * 0.5), palette.plants[shade])
-            }
+    /// A soft cushion of moss (greens) or algae (olives), domed: lighter on top, darker at the rim.
+    private static func paintCushion(on canvas: PixelBuffer, at center: Point, palette: WaterPalette) {
+        let radius = random(5...16)
+        let colors = chance(0.6) ? Array(palette.plants[0...3])
+            : [Color(0x4e5a2a), Color(0x6b7a3a), Color(0x8a9a48), Color(0xa8b860)].map { $0.mixed(with: palette.silt, 0.25) }
+        for _ in 0..<Int(radius * radius * 0.8) {
+            let reach = Double.random(in: 0...1).squareRoot() * radius, angle = random(0...(2 * .pi))
+            let dome = 1 - reach / radius
+            let shade = min(colors.count - 1, Int(dome * Double(colors.count - 1) + random(0...0.9)))
+            canvas.disc(Point(x: center.x + cos(angle) * reach * 1.3, y: center.y + sin(angle) * reach), radius: random(0.7...1.6), colors[shade])
         }
     }
 }
