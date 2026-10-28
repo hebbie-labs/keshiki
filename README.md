@@ -25,6 +25,10 @@ Requires macOS 14 or later on Apple Silicon. Wallpapers lives in the menu bar
 
 - **Eight koi with a life of their own.** Each has a favourite: herding the
   tiny fish, grazing duckweed, lotus shade, the frog, the ball or the goose.
+- **A living pond.** Clear water with a wobbling net of sunlight on the floor,
+  shafts of light, water plants along the shallow edges, deep shadows under
+  the lily pads, and schools of Japanese pond fish (hime-medaka, tanago
+  bitterlings, oikawa and motsugo) that swim in bursts and glides.
 - **They learn your routine.** Feed them at the same spot around the same time
   on two different days and they'll be waiting there.
 - **A good-morning greeting.** The first time you see the pond each day they
@@ -33,39 +37,44 @@ Requires macOS 14 or later on Apple Silicon. Wallpapers lives in the menu bar
 - **Dawn to night on your clock** (or synced with dark mode), fireflies after
   dark, rain on demand, and a *Deep Clear* water theme.
 - **Visitors:** invite the goose or drop a temari ball.
-- **Calm or playful** mood.
-- **Screensaver mode**, one pond per display, rests on battery if you like.
-  Pauses by itself when windows cover it. Works offline, no tracking.
+- **Lock screen:** a still of the pond becomes the desktop picture, which the
+  lock screen shows; it follows the time of day and your own picture comes back
+  when you quit. *Install Screensaver…* adds the animated pond as a system
+  screensaver too.
+- **Light on memory:** drawn natively into a small pixel buffer, about 40 MB
+  for three displays. Ponds hidden behind windows aren't drawn at all, and it
+  can rest on battery.
 
 ## Development
 
 ```sh
-make run       # build build/Wallpapers.app and launch it
+make run       # build build/Wallpapers.app (with the screensaver inside) and launch it
 make dmg       # build build/Wallpapers-<version>.dmg
-make test      # unit tests (Node 20+)
-make preview   # serve the pond at http://localhost:8000/?theme=night&rain=1
+make test      # build and run the engine checks
 ```
 
 The version comes from `CFBundleShortVersionString` in `App/Info.plist`.
 
 ## Structure
 
-- `App/` — the macOS host in Swift (AppKit + WebKit), no Xcode project needed.
-  - `PondController` wires everything together.
-  - `PondDisplays` / `PondWindow` keep one borderless window per display at
-    desktop level.
-  - `DesktopHitTest` decides whether a click landed on the bare desktop;
-    the desktop belongs to Finder, so clicks are watched globally and
-    forwarded to the pond.
-  - `StatusMenu` / `MenuEntry` build the menu bar menu from the settings.
-  - `PondSchemeHandler` serves the page over `pond://`, because WebKit won't
-    load ES modules from `file://`.
-  - `PondSettings` and `PondMemory` persist settings and what the koi learned.
-- `Pond/` — the pond itself: a 960 px wide canvas scaled up pixelated, in plain
-  ES modules (`koi.js`, `school.js`, `frog.js`, `goose.js`, `sky.js`, …).
-  `main.js` is the entry point and exposes `window.pond` to the app.
-- `tests/` — Node tests for the learning (`memory.js`) and the time of day
-  (`sky.js`).
+- `Engine/` — the pond, shared by the app and the screensaver. A 960 px wide
+  `PixelBuffer` is drawn every frame and scaled up with nearest-neighbour.
+  - `PondScene` owns one pond: its `World` and the painted floor.
+  - `World` holds the residents (`Koi`, `FishSchool`, `Frog`, `Goose`, `Ball`,
+    `LilyPad`, duckweed, food, ripples) and the draw order.
+  - `PondFloor` paints the still parts once (floor, plants, water depth,
+    light rays); `Caustics` precomputes a seamless looping light net.
+  - `PondMemory` is the learning; `Sky` the time of day and fireflies.
+- `App/` — the menu bar app (AppKit, no Xcode project needed).
+  - `PondController` wires everything and runs the 30 fps frame timer.
+  - `PondDisplays` / `PondWindow` / `PondView` keep one borderless window per
+    display at desktop level.
+  - `DesktopHitTest` decides whether a click landed on the bare desktop; the
+    desktop belongs to Finder, so clicks are watched globally and forwarded.
+  - `LockScreenWallpaper` swaps the desktop pictures for pond stills and back.
+  - `StatusMenu` / `MenuEntry` build the menu from the settings.
+- `Saver/` — `PondSaverView`, the engine as a `.saver` bundle.
+- `Tests/` — engine checks (learning, time of day, rendering).
 - `Assets/` — app icon.
 
 Inspired by [Nagomi](https://nagomi.m4yank.com/). All code and pixel art
