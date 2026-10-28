@@ -15,7 +15,7 @@ extension PondWorld {
         case .lotusShade:
             return pads.randomElement().map { KoiTarget(point: $0.center.jittered($0.radius * 0.6), isFavourite: true) }
         case .frog:
-            let pad = frog.pad
+            let pad = pads[frog.padIndex]
             return KoiTarget(point: pad.center.moved(by: pad.radius + 10, heading: random(0...(2 * .pi))), isFavourite: true)
         case .ball:
             return ball == nil ? nil : tracking { [unowned self] in ball?.position }

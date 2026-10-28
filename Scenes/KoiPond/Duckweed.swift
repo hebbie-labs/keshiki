@@ -2,11 +2,15 @@ import Foundation
 
 
 struct DuckweedLeaf {
-    let position: Point
+    /// Where the leaf drifts back to, loosely: duckweed patches keep together.
+    let home: Point
     let color: Color
     var regrowIn: Double = 0
+    var offset = Point(x: 0, y: 0)
+    var drift = Point(x: 0, y: 0)
 
     var isEaten: Bool { regrowIn > 0 }
+    var position: Point { Point(x: home.x + offset.x, y: home.y + offset.y) }
 }
 
 /// Little floating patches the koi graze; eaten leaves grow back.
@@ -23,7 +27,7 @@ extension PondWorld {
             return (0..<leavesPerPatch).map { _ in
                 let reach = Double.random(in: 0...1).squareRoot() * patchRadius, angle = random(0...6.28)
                 let position = Point(x: center.x + cos(angle) * reach * 1.4, y: center.y + sin(angle) * reach)
-                return DuckweedLeaf(position: position, color: duckweedGreens.randomElement()!)
+                return DuckweedLeaf(home: position, color: duckweedGreens.randomElement()!)
             }
         }
     }

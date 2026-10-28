@@ -6,6 +6,7 @@ extension PondWorld {
     /// Disturbs the water; the waves spread, overlap and bounce off the edges and the lily pads.
     func addRipple(at center: Point, radius: Double = 3, strength: Double = 1) {
         water.drop(at: center, radius: radius, strength: strength)
+        pushFloating(from: center, strength: strength, reach: 50 + radius * 3)
     }
 
     func addRaindrops() {

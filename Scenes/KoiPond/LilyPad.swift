@@ -1,12 +1,19 @@
 import Foundation
 
 struct LilyPad {
+    /// Where the stem holds the pad; it drifts around this spot and springs back.
     let center: Point
     let radius: Double
     let notchAngle: Double
     let hasFlower: Bool
     /// Turns the lotus petals, so no two flowers look alike.
     let petalTurn: Double
+    var offset = Point(x: 0, y: 0)
+    var drift = Point(x: 0, y: 0)
+    var turn = 0.0
+    var spin = 0.0
+
+    var position: Point { Point(x: center.x + offset.x, y: center.y + offset.y) }
 
     private static let count = 13
     private static let placementAttempts = 600
@@ -28,14 +35,14 @@ struct LilyPad {
         return pads
     }
 
-    /// Pads lie still, so they're painted once into the scene's overlay; the water casts their shadows.
+    /// Drawn every frame, as the pads drift; the water casts their shadows.
     func draw(on canvas: Canvas) {
-        let top = center
+        let top = position, notchAngle = notchAngle + turn
         canvas.disc(top, radius: radius, Self.leaf)
         canvas.disc(Point(x: top.x - radius * 0.12, y: top.y - radius * 0.12), radius: radius * 0.8, Self.leafLight)
         drawRim(on: canvas, at: top)
-        drawVeins(on: canvas, at: top)
-        drawNotch(on: canvas, at: top)
+        drawVeins(on: canvas, at: top, notchAngle: notchAngle)
+        drawNotch(on: canvas, at: top, notchAngle: notchAngle)
         if hasFlower { drawLotus(on: canvas, at: Point(x: top.x + radius * 0.15, y: top.y - radius * 0.1)) }
     }
 
@@ -51,14 +58,14 @@ struct LilyPad {
         }
     }
 
-    private func drawVeins(on canvas: Canvas, at top: Point) {
+    private func drawVeins(on canvas: Canvas, at top: Point, notchAngle: Double) {
         for vein in 0..<9 {
             let angle = notchAngle + 0.5 + Double(vein) * 0.66
             for step in stride(from: 3.0, to: radius - 2, by: 1) { canvas.plot(top.moved(by: step, heading: angle), Self.vein) }
         }
     }
 
-    private func drawNotch(on canvas: Canvas, at top: Point) {
+    private func drawNotch(on canvas: Canvas, at top: Point, notchAngle: Double) {
         for step in stride(from: 1.0, to: radius + 1, by: 1) {
             let width = max(1.0, step * 0.3)
             canvas.disc(top.moved(by: step, heading: notchAngle), radius: width / 2, Color(0x1f5a48))
@@ -68,10 +75,10 @@ struct LilyPad {
     private func drawLotus(on canvas: Canvas, at center: Point) {
         for petal in 0..<8 {
             let angle = Double(petal) / 8 * 2 * .pi + petalTurn
-            canvas.disc(center.moved(by: 6, heading: angle), radius: 2.6, petal.isMultiple(of: 2) ? Color(0xe8578a) : Color(0xf39ab9))
+            canvas.disc(center.moved(by: 6, heading: angle + turn), radius: 2.6, petal.isMultiple(of: 2) ? Color(0xe8578a) : Color(0xf39ab9))
         }
         for petal in 0..<5 {
-            canvas.disc(center.moved(by: 3, heading: Double(petal) / 5 * 2 * .pi + petalTurn + 0.3), radius: 2.2, Color(0xf8c3d6))
+            canvas.disc(center.moved(by: 3, heading: Double(petal) / 5 * 2 * .pi + petalTurn + turn + 0.3), radius: 2.2, Color(0xf8c3d6))
         }
         canvas.disc(center, radius: 2, Color(0xffcf4a))
         canvas.plot(center, Color(0xf08a24))

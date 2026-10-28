@@ -67,6 +67,13 @@ let pondWorld = PondWorld(size: SceneSize(width: 960, height: 600), options: Koi
 for _ in 0..<600 { pondWorld.update(dt: 1.0 / 30) }
 let gaps = zip(pondWorld.kois[0].body, pondWorld.kois[0].body.dropFirst()).map { $0.distance(to: $1) }
 check(gaps.max()! - gaps.min()! < 0.01, "a koi's body keeps its segment length while it swings")
+for _ in 0..<40 {
+    pondWorld.touchWater(at: pondWorld.pads[0].center.jittered(20))
+    pondWorld.update(dt: 1.0 / 30)
+}
+let pushed = pondWorld.pads[0].offset
+for _ in 0..<900 { pondWorld.update(dt: 1.0 / 30) }
+check(hypot(pushed.x, pushed.y) > 1 && pondWorld.pads.allSatisfy { hypot($0.offset.x, $0.offset.y) < 12 }, "waves push the lily pads and their stems pull them back")
 
 // Drawing
 let tiny = PixelBuffer(width: 10, height: 10)
