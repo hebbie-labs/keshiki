@@ -50,6 +50,9 @@ final class Koi {
     private static let gooseFearRadius = 90.0
     private static let personalSpace = 18.0
     private static let heartSeconds = 2.2
+    /// How often a swimming koi stirs the surface above its back, and how fast it must swim for that.
+    private static let wakeSeconds = 0.3
+    private static let wakeSpeed = 0.5
     private static let outline = Color(0x123a30, alpha: 0.35)
     private static let fin = Color(0xfaf0e6, alpha: 0.45)
 
@@ -68,6 +71,7 @@ final class Koi {
     private var excitement = 0.0
     private var heartTimer = 0.0
     private var heartCooldown = random(5...20)
+    private var wakeIn = random(0...0.3)
 
     var head: Point { body[0] }
 
@@ -84,6 +88,7 @@ final class Koi {
         swim(towards: steeringPoint(in: world), in: world.size, mood: KoiMood(world.options.mood), dt: dt)
         interact(with: world)
         followHead()
+        stirWater(in: world, dt: dt)
         heartTimer = max(0, heartTimer - dt)
         heartCooldown -= dt
     }
@@ -157,6 +162,15 @@ final class Koi {
         let playedWithBall = world.ball?.nudge(by: self) ?? false
         let atFavourite = target?.isFavourite == true && target!.point.distance(to: head) < 30
         if atFavourite || (grazed && favourite == .duckweed) || (playedWithBall && favourite == .ball) { feelHappy() }
+    }
+
+    /// A koi just under the surface pushes the water up and aside; the faster, the more.
+    private func stirWater(in world: PondWorld, dt: Double) {
+        wakeIn -= dt
+        guard wakeIn <= 0 else { return }
+        wakeIn = Self.wakeSeconds
+        guard velocity > Self.wakeSpeed else { return }
+        world.addRipple(at: body[2], radius: 2 * size, strength: 0.06 * velocity * size)
     }
 
     private func feelHappy() {

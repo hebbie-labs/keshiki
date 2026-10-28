@@ -62,6 +62,7 @@ final class FishSchool {
     private static let personalSpace = 10.0
     private static let turnRate = 0.045
     private static let burstSeconds = 1.5...4.0
+    private static let splashChance = 0.15
     private static let shadowOffset = Point(x: 7, y: 9)
     private static let shadow = Color(0x0b2e26, alpha: 0.2)
     private static let eye = Color(0x161616)
@@ -109,7 +110,8 @@ final class FishSchool {
         member.nextBurstIn -= dt
         var targetSpeed = species.cruiseSpeed * wanted.urgency
         if member.nextBurstIn <= 0 {
-            // Small fish swim in little bursts and glide in between.
+            // Small fish swim in little bursts and glide in between; now and then one breaks the surface.
+            if member.nextBurstIn + dt > 0 && chance(Self.splashChance) { world.addRipple(at: member.position, radius: 1, strength: 0.05) }
             targetSpeed *= 1.5
             if member.nextBurstIn < -0.25 { member.nextBurstIn = random(Self.burstSeconds) }
         }
