@@ -84,7 +84,24 @@ make test      # build and run the checks
 
 The version comes from `CFBundleShortVersionString` in `App/Info.plist`.
 
+There's no Xcode project and no SwiftPM: the `Makefile` calls `swiftc` on file
+globs (Swift 5 mode, ad-hoc signed). `make saver` and `make wallpaper` build
+just the screensaver or the wallpaper extension.
+
+- **Checks** are a plain executable (`Tests/main.swift`), not XCTest:
+  `check(condition, "description")` prints ✔ or ✘, and `make test` runs them
+  all. The GPU checks need a Metal device.
+- **Shaders** (`Core/Shaders.swift`, `Core/StageShaders.swift`) are Swift
+  string literals compiled at runtime, so a shader error only shows when the
+  renderer fails to start, not at build time.
+- **Settings** are `Codable` structs saved as JSON in `UserDefaults`
+  (`SettingsStore`). They still read what *Wallpapers* 1.x saved, so new
+  fields need a default when decoding (covered by the checks).
+
 ## Structure
+
+One engine (`Core/` and `Scenes/`) is built into the app, the screensaver, the
+wallpaper extension and the checks, so it must not depend on `App/`.
 
 - `Core/` — shared by every scene.
   - `LivingScene` is what a scene must do; scenes draw into a `Canvas` in
