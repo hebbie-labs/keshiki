@@ -1,7 +1,7 @@
 import Foundation
 
 /// An sRGB colour with opacity, pre-packed for fast blending into a `PixelBuffer`.
-struct Color {
+struct Color: Equatable {
     let red: UInt32
     let green: UInt32
     let blue: UInt32

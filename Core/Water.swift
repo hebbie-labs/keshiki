@@ -16,6 +16,8 @@ final class WaterSurface {
     /// How deep the floor lies under a point, in design units: it sets how far the waves shift the floor
     /// and where the light and shadow they cast land on it.
     let depth: (Point) -> Double
+    /// The colour the water turns the floor towards, the more of it the light passes through.
+    var color = Color(0x236a62)
     private var drops: [Drop] = []
 
     /// Most disturbances one frame carries to the GPU.

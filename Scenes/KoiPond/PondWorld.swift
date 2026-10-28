@@ -52,11 +52,12 @@ final class PondWorld {
         if raining { addRaindrops() }
     }
 
-    /// What swims below, then what floats on top. The floor (and its light) is the backdrop; the scene adds the sky.
+    /// What swims below, then what floats on top. The floor is the backdrop; the water casts the shadows
+    /// and the scene adds the sky.
     func draw(on canvas: Canvas, time: Double) {
-        kois.forEach { $0.drawShadow(on: canvas) }
         schools.forEach { $0.draw(on: canvas) }
         kois.forEach { $0.draw(on: canvas) }
+        canvas.placeSurface()
         drawFood(on: canvas)
         drawDuckweed(on: canvas)
         canvas.placeOverlay()

@@ -19,18 +19,19 @@ final class SceneDisplays {
         self.kind = kind
         windows.forEach { $0.close() }
         windows = NSScreen.screens.compactMap { screen in
-            let scene = kind.make(aspectRatio: screen.frame.width / screen.frame.height, settings: settings)
+            let scene = kind.make(aspectRatio: WaterStage.pondAspect(screenAspect: screen.frame.width / screen.frame.height), settings: settings)
             configure(scene)
             return SceneWindow(screen: screen, scene: scene)
         }
     }
 
-    /// Moves the scenes that should run forward and draws them in one GPU submission.
+    /// Moves the scenes that should run forward and draws them.
     /// The rest keep their last frame on screen and don't simulate either, so they cost nothing.
     func advance(by dt: Double, where shouldRun: (SceneWindow) -> Bool) {
-        let running = windows.filter(shouldRun)
-        running.forEach { $0.scene.advance(by: dt) }
-        SceneRenderer.render(running.map(\.renderJob))
+        for window in windows where shouldRun(window) {
+            window.scene.advance(by: dt)
+            window.render()
+        }
     }
 
     func window(at screenPoint: NSPoint) -> SceneWindow? {

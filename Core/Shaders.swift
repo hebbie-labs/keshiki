@@ -43,7 +43,7 @@ enum Shaders {
         return in.color;
     }
 
-    // ---- Layers: the floor alone, then the scene in two layers drawn at its own pixel size ----
+    // ---- Layers: the floor, and the scene in two transparent layers at its own pixel size ----
 
     vertex float4 fullScreenVertex(uint vertexID [[vertex_id]]) {
         float2 corner = float2(vertexID & 1, vertexID >> 1);
@@ -52,6 +52,19 @@ enum Shaders {
 
     fragment float4 backdropFragment(float4 position [[position]], texture2d<float> floorTexture [[texture(0)]]) {
         return floorTexture.read(uint2(position.xy));
+    }
+
+    fragment float4 coverFragment(float4 position [[position]], constant float4 &color [[buffer(0)]]) {
+        return color;
+    }
+
+    // The scene flat, without water: what floats over what swims over the floor. The layers are premultiplied.
+    fragment float4 flattenFragment(float4 position [[position]], texture2d<float> floorTexture [[texture(0)]],
+                                    texture2d<float> swimming [[texture(1)]], texture2d<float> floating [[texture(2)]]) {
+        uint2 pixel = uint2(position.xy);
+        float4 below = swimming.read(pixel), above = floating.read(pixel);
+        float3 color = floorTexture.read(pixel).rgb * (1 - below.a) + below.rgb;
+        return float4(color * (1 - above.a) + above.rgb, 1);
     }
 
     // The overlay is stored as one palette index per pixel; index 0 is transparent.
@@ -107,10 +120,9 @@ enum Shaders {
         float4(0.8, 15, 0.0055, 470), float4(2.2, 21, 0.0077, 400), float4(3.1, 17, 0.0060, 440), float4(4.8, 13, 0.0039, 510)
     };
 
-    // Turns heights into what shading needs: the slope (x, y) and the curvature per design unit, and the depth.
+    // Turns heights into what the 3D water needs: the slope (x, y) and the curvature per design unit, and the height.
     kernel void waterShape(texture2d<float, access::read> heights [[texture(0)]],
                            texture2d<float, access::write> shape [[texture(1)]],
-                           texture2d<float, access::read> depth [[texture(2)]],
                            constant WaterShape &water [[buffer(0)]],
                            uint2 cell [[thread_position_in_grid]]) {
         uint2 last = uint2(heights.get_width(), heights.get_height()) - 1;
@@ -121,7 +133,7 @@ enum Shaders {
         float right = heights.read(uint2(min(cell.x + 1, last.x), cell.y)).r;
         float up = heights.read(uint2(cell.x, cell.y == 0 ? 0 : cell.y - 1)).r;
         float down = heights.read(uint2(cell.x, min(cell.y + 1, last.y))).r;
-        float3 result = float3(right - left, down - up, 0) / (2 * unit);
+        float4 result = float4(right - left, down - up, 0, here) / float4(2 * unit, 2 * unit, 1, 1);
         result.z = (left + right + up + down - 4 * here) / (unit * unit);
         float2 position = (float2(cell) + 0.5) * unit;
         for (int index = 0; index < 12; index++) {
@@ -131,50 +143,9 @@ enum Shaders {
             float phase = dot(direction, position) - 2 * M_PI_F * wave.w * water.time.x / 600 + wave.x * 7;
             result.xy += direction * wave.z * cos(phase);
             result.z -= number * number * wave.z * sin(phase);
+            result.w += wave.z * sin(phase);
         }
-        shape.write(float4(result, depth.read(cell).r), cell);
-    }
-
-    struct WaterLook {
-        float4 size;    // target width, height; scene width, height in design units
-        float4 optics;  // refraction and light focus per unit of depth, wave relief, 1 if there is water
-        float4 light;   // rgb, strength of the light net
-    };
-
-    // Puts the frame together at the display's full resolution: the layer below the surface is bent by the waves
-    // and lit by the light they focus on the floor, the waves catch the sun, and the layer above sits on top.
-    fragment float4 waterFragment(float4 position [[position]],
-                                  texture2d<float> below [[texture(0)]],
-                                  texture2d<float> above [[texture(1)]],
-                                  texture2d<float> shape [[texture(2)]],
-                                  constant WaterLook &look [[buffer(0)]]) {
-        constexpr sampler pixels(filter::nearest, address::clamp_to_edge);
-        constexpr sampler smooth(filter::linear, address::clamp_to_edge);
-        float2 spot = position.xy / look.size.xy;
-        float4 top = above.sample(pixels, spot);
-        if (look.optics.w < 0.5) return float4(below.sample(pixels, spot).rgb * (1 - top.a) + top.rgb, 1);
-        float4 surface = shape.sample(smooth, spot);
-        float depth = surface.w;
-        // Looking straight down, a tilted surface shifts the floor below it, the more the deeper it lies.
-        float3 color = below.sample(pixels, spot - surface.xy * depth * look.optics.x / look.size.zw).rgb;
-        // Sunlight reaches this bit of floor through the surface up towards the sun (top left, bent into the water),
-        // so the light and shadow a wave casts land beside it, further away where the floor lies deeper.
-        float2 towardsSun = float2(-0.16, -0.21) * depth;
-        float curvature = shape.sample(smooth, spot + towardsSun / look.size.zw).z;
-        // A crest is a lens: light only moves around, so the floor brightens where waves bend it together
-        // and falls into shadow where they spread it (how much light lands = area before / area after).
-        float gathered = 1 / max(1 + look.optics.y * depth * curvature, 0.2);
-        color = mix(color, look.light.rgb, saturate(gathered - 1) * look.light.w) * (1 - saturate(1 - gathered) * 0.45);
-        // The surface itself: sides facing the sun are a touch lighter, the far sides a touch darker,
-        // it reflects ~2 % seen from above (Fresnel), more where tilted, plus the odd glint of sun.
-        float3 normal = normalize(float3(-surface.xy * look.optics.z, 1));
-        float3 sun = normalize(float3(-0.38, -0.5, 1.8));
-        float facing = dot(normal, sun) - sun.z;
-        color *= 1 + clamp(facing * 2.5, -0.12, 0.12);
-        float fresnel = pow(1 - normal.z, 5) * 0.98;
-        float glint = pow(saturate(dot(normal, normalize(sun + float3(0, 0, 1)))), 900);
-        color = mix(color, look.light.rgb, saturate(glint * 0.8 + fresnel));
-        return float4(color * (1 - top.a) + top.rgb, 1);
+        shape.write(result, cell);
     }
     """
 }

@@ -1,7 +1,6 @@
 import AppKit
 
-/// Shows a scene through a Metal layer at the display's full resolution: the renderer draws the water at that
-/// resolution and scales the scene's pixel art up to it with crisp, nearest-neighbour pixels.
+/// Shows a scene's stage through a Metal layer at the display's full resolution.
 final class SceneView: NSView {
     let metalLayer = CAMetalLayer()
     private let caption = CATextLayer()
@@ -12,7 +11,7 @@ final class SceneView: NSView {
 
     init(frame: NSRect, backingScale: CGFloat) {
         super.init(frame: frame)
-        SceneRenderer.configure(metalLayer, width: Int(frame.width * backingScale), height: Int(frame.height * backingScale))
+        WaterStage.configure(metalLayer, width: Int(frame.width * backingScale), height: Int(frame.height * backingScale))
         layer = metalLayer
         wantsLayer = true
         setUpCaption()

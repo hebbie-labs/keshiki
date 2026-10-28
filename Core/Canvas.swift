@@ -6,8 +6,10 @@ protocol Canvas: AnyObject {
     func plot(_ point: Point, _ color: Color)
     func fillRect(_ origin: Point, width: Int, height: Int, _ color: Color)
     func disc(_ center: Point, radius: Double, _ color: Color)
-    /// Lays a colour over everything drawn so far, e.g. the time-of-day tint.
+    /// Lays a colour over the whole frame, e.g. the time-of-day tint.
     func cover(with color: Color)
+    /// Marks where what swims under the water ends and what floats on it begins.
+    func placeSurface()
     /// Marks where the scene's static overlay (painted once, e.g. lily pads) goes between the shapes.
     func placeOverlay()
 }

@@ -50,8 +50,6 @@ final class Koi {
     private static let gooseFearRadius = 90.0
     private static let personalSpace = 18.0
     private static let heartSeconds = 2.2
-    private static let shadowOffset = Point(x: 9, y: 12)
-    private static let shadow = Color(0x0b2e26, alpha: 0.28)
     private static let outline = Color(0x123a30, alpha: 0.35)
     private static let fin = Color(0xfaf0e6, alpha: 0.45)
 
@@ -199,15 +197,8 @@ final class Koi {
 
     private var outline: [Segment] = []
 
-    /// The shadow is drawn first (below every fish), so it also works out the swimming body for `draw`.
-    func drawShadow(on canvas: Canvas) {
-        updateOutline()
-        let shadow = outline.map { Segment(point: Point(x: $0.point.x + Self.shadowOffset.x, y: $0.point.y + Self.shadowOffset.y), direction: $0.direction) }
-        drawFins(shadow, on: canvas, color: Self.shadow)
-        drawBody(shadow, on: canvas, color: Self.shadow, widen: 0)
-    }
-
     func draw(on canvas: Canvas) {
+        updateOutline()
         drawFins(outline, on: canvas, color: Self.fin)
         drawBody(outline, on: canvas, color: Self.outline, widen: 1)
         drawBody(outline, on: canvas, color: variety.base, widen: 0)

@@ -2,10 +2,10 @@ import CoreGraphics
 import Metal
 import QuartzCore
 
-/// Draws a scene on the GPU: its backdrop and every recorded shape as instanced quads, in two layers at the scene's
-/// pixel size (below and above the overlay), then puts them together at the display's resolution with the water
-/// in between: simulated waves that bend, light and reflect the layer below. One renderer per display; the device
-/// and pipelines are shared.
+/// Draws a scene's pixel art on the GPU, every recorded shape as an instanced quad, into two layers at the scene's
+/// pixel size: what swims under the water, and what floats on it (with the overlay). It also moves the scene's
+/// water on. `WaterStage` lays all of it out in 3D; `snapshot` flattens the layers over the backdrop instead.
+/// One renderer per display; the device and pipelines are shared.
 final class SceneRenderer {
     private struct Shared {
         let device: MTLDevice
@@ -13,19 +13,22 @@ final class SceneRenderer {
         let shapes: MTLRenderPipelineState
         let backdrop: MTLRenderPipelineState
         let overlay: MTLRenderPipelineState
-        let compose: MTLRenderPipelineState
+        let flatten: MTLRenderPipelineState
+        /// Covers for the flat snapshot, and for the stage's display texture (sRGB).
+        let cover: MTLRenderPipelineState
+        let stageCover: MTLRenderPipelineState
         let waterStep: MTLComputePipelineState
         let waterShape: MTLComputePipelineState
 
         init?() {
             guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue(),
                   let library = try? device.makeLibrary(source: Shaders.source, options: nil) else { return nil }
-            func pipeline(_ vertex: String, _ fragment: String, blending: Bool) -> MTLRenderPipelineState? {
+            func pipeline(_ vertex: String, _ fragment: String, blending: Bool, format: MTLPixelFormat = SceneRenderer.pixelFormat) -> MTLRenderPipelineState? {
                 let descriptor = MTLRenderPipelineDescriptor()
                 descriptor.vertexFunction = library.makeFunction(name: vertex)
                 descriptor.fragmentFunction = library.makeFunction(name: fragment)
                 let attachment = descriptor.colorAttachments[0]!
-                attachment.pixelFormat = SceneRenderer.pixelFormat
+                attachment.pixelFormat = format
                 attachment.isBlendingEnabled = blending
                 attachment.sourceRGBBlendFactor = .sourceAlpha
                 attachment.destinationRGBBlendFactor = .oneMinusSourceAlpha
@@ -33,84 +36,64 @@ final class SceneRenderer {
                 attachment.destinationAlphaBlendFactor = .oneMinusSourceAlpha
                 return try? device.makeRenderPipelineState(descriptor: descriptor)
             }
+            func kernel(_ name: String) -> MTLComputePipelineState? {
+                library.makeFunction(name: name).flatMap { try? device.makeComputePipelineState(function: $0) }
+            }
             guard let shapes = pipeline("shapeVertex", "shapeFragment", blending: true),
                   let backdrop = pipeline("fullScreenVertex", "backdropFragment", blending: false),
                   let overlay = pipeline("fullScreenVertex", "overlayFragment", blending: true),
-                  let compose = pipeline("fullScreenVertex", "waterFragment", blending: false),
-                  let waterStep = library.makeFunction(name: "waterStep").flatMap({ try? device.makeComputePipelineState(function: $0) }),
-                  let waterShape = library.makeFunction(name: "waterShape").flatMap({ try? device.makeComputePipelineState(function: $0) })
-            else { return nil }
+                  let flatten = pipeline("fullScreenVertex", "flattenFragment", blending: false),
+                  let cover = pipeline("fullScreenVertex", "coverFragment", blending: true),
+                  let stageCover = pipeline("fullScreenVertex", "coverFragment", blending: true, format: WaterStage.pixelFormat),
+                  let waterStep = kernel("waterStep"), let waterShape = kernel("waterShape") else { return nil }
             self.device = device
             self.queue = queue
             self.shapes = shapes
             self.backdrop = backdrop
             self.overlay = overlay
-            self.compose = compose
+            self.flatten = flatten
+            self.cover = cover
+            self.stageCover = stageCover
             self.waterStep = waterStep
             self.waterShape = waterShape
         }
     }
 
-    /// The simulated water of one scene: heights now and one step ago (two, swapped every step),
-    /// the slopes and curvature for shading, and where the water can't move.
+    /// The simulated water: heights now and one step ago (two, swapped every step) and where it can't move.
     private struct Water {
         var heights: [MTLTexture]
-        let shape: MTLTexture
         let obstacles: MTLTexture
-        let depth: MTLTexture
+        let columns: Int
+        let rows: Int
         var time = 0.0
     }
 
     /// Design units per water cell.
-    private static let waterCell = 2.0
+    static let waterCell = 2.0
     private static let waterStepsPerFrame = 2
     private static let waveSpeed: Float = 0.25
     private static let waveDamping: Float = 0.985
     /// How deep a drop of strength 1 pushes the water, in design units.
     private static let dropDepth = 1.2
-    /// How far a tilted surface shifts the floor per unit of depth (1 - 1 / 1.33 for water), how strongly
-    /// the waves focus light per unit of depth, and how steep waves look for their lit sides and glints.
-    private static let refraction: Float = 0.25
-    private static let lightFocus: Float = 1.6
-    private static let waveRelief: Float = 2.5
-    private static let lightNetStrength: Float = 0.3
-
-    /// One display's share of a frame.
-    struct Job {
-        let renderer: SceneRenderer
-        let scene: LivingScene
-        let layer: CAMetalLayer
-    }
 
     static let pixelFormat = MTLPixelFormat.bgra8Unorm
+    /// The format of the waves texture: slope x, slope y and curvature per design unit, and height.
+    static let wavesFormat = MTLPixelFormat.rgba16Float
     private static let shared = Shared()
-    /// Two frames in flight at most: one being drawn by the GPU, one being recorded.
-    private static let framesInFlight = 2
-    private static let inFlight = DispatchSemaphore(value: framesInFlight)
 
     private let shared: Shared
     private let drawList: DrawList
     private var backdropTexture: MTLTexture?
-    /// The scene's layers below and above its overlay, at its own pixel size; the above layer is premultiplied.
-    private var below: MTLTexture?
-    private var above: MTLTexture?
     private var water: Water?
     private var overlay: (indices: MTLTexture, palette: [SIMD4<Float>])?
-    private var shapeBuffers: [MTLBuffer?] = Array(repeating: nil, count: framesInFlight)
+    private var shapeBuffers: [MTLBuffer?] = [nil, nil]
     private var bufferIndex = 0
+    /// Goes up whenever the scene painted a new backdrop, so `WaterStage` knows to copy it.
+    private(set) var backdropVersion = 0
 
     static var isAvailable: Bool { shared != nil }
-
-    static func configure(_ layer: CAMetalLayer, width: Int, height: Int) {
-        layer.device = shared?.device
-        layer.pixelFormat = pixelFormat
-        layer.framebufferOnly = true
-        layer.maximumDrawableCount = 2
-        layer.drawableSize = CGSize(width: width, height: height)
-        layer.magnificationFilter = .nearest
-        layer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
-        layer.isOpaque = true
-    }
+    static var device: MTLDevice? { shared?.device }
+    static var queue: MTLCommandQueue? { shared?.queue }
 
     /// Uploads the scene's painted layers right away, so their CPU copies are freed
     /// even on a display that stays paused and never draws.
@@ -118,108 +101,75 @@ final class SceneRenderer {
         guard let shared = Self.shared else { return nil }
         self.shared = shared
         drawList = DrawList(width: scene.pixelWidth, height: scene.pixelHeight, scale: scene.pixelScale)
-        below = makeLayer(width: scene.pixelWidth, height: scene.pixelHeight)
-        above = makeLayer(width: scene.pixelWidth, height: scene.pixelHeight)
         if let surface = scene.water { water = makeWater(surface, width: scene.pixelWidth, height: scene.pixelHeight, scale: scene.pixelScale) }
         uploadNewLayers(of: scene)
     }
 
-    /// Draws the next frame of every job into its layer, all in one GPU submission: each submission
-    /// costs a trip into the kernel, so three displays share one instead of paying three times.
-    static func render(_ jobs: [Job], at date: Date = Date(), completion: ((MTLCommandBuffer) -> Void)? = nil) {
-        guard !jobs.isEmpty, let shared, let commands = shared.queue.makeCommandBuffer() else { return }
-        inFlight.wait()
-        for job in jobs {
-            guard let drawable = job.layer.nextDrawable() else { continue }
-            job.renderer.encode(job.scene, into: drawable.texture, at: date, commands: commands, simulate: true)
-            commands.present(drawable)
-        }
-        commands.addCompletedHandler { buffer in
-            completion?(buffer)
-            inFlight.signal()
-        }
-        commands.commit()
+    /// The size of the waves texture `encodeWater` fills.
+    var waterGrid: (columns: Int, rows: Int)? {
+        water.map { ($0.columns, $0.rows) }
     }
 
-    /// A still of the scene's current frame, e.g. for the lock screen. The water doesn't move on for it.
-    /// It has the scene's own pixel size unless given another, e.g. the display's.
-    func snapshot(_ scene: LivingScene, at date: Date = Date(), width: Int? = nil, height: Int? = nil) -> CGImage? {
-        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.pixelFormat, width: width ?? scene.pixelWidth,
-                                                                  height: height ?? scene.pixelHeight, mipmapped: false)
-        descriptor.usage = .renderTarget
-        descriptor.storageMode = .shared
-        Self.inFlight.wait()
-        defer { Self.inFlight.signal() }
-        guard let texture = shared.device.makeTexture(descriptor: descriptor), let commands = shared.queue.makeCommandBuffer() else { return nil }
-        encode(scene, into: texture, at: date, commands: commands, simulate: false)
-        commands.commit()
-        commands.waitUntilCompleted()
-        let image = PixelBuffer(width: texture.width, height: texture.height)
-        image.pixels.withUnsafeMutableBytes { bytes in
-            texture.getBytes(bytes.baseAddress!, bytesPerRow: texture.width * 4, from: MTLRegionMake2D(0, 0, texture.width, texture.height), mipmapLevel: 0)
-        }
-        return image.makeImage()
-    }
-
-    private func encode(_ scene: LivingScene, into target: MTLTexture, at date: Date, commands: MTLCommandBuffer, simulate: Bool) {
+    /// Records this frame's shapes; call before encoding the layers.
+    func record(_ scene: LivingScene, at date: Date) {
         uploadNewLayers(of: scene)
         drawList.reset()
         scene.draw(on: drawList, at: date)
-        guard let backdropTexture, let below, let above, let shapes = shapeBuffer(for: drawList.primitives) else { return }
-        if simulate, let surface = scene.water { simulateWater(dropping: surface.takeDrops(), commands: commands) }
-        let count = drawList.primitives.count, split = drawList.overlayIndex ?? count
-        guard let encoder = commands.makeRenderCommandEncoder(descriptor: Self.pass(into: below, clear: false)) else { return }
-        drawBackdrop(backdropTexture, with: encoder)
-        drawShapes(shapes, range: 0..<split, size: below, with: encoder)
+    }
+
+    /// Draws what swims and what floats into two transparent layers (premultiplied) of the scene's pixel size.
+    func encodeLayers(swimming: MTLTexture, floating: MTLTexture, commands: MTLCommandBuffer) {
+        guard let shapes = shapeBuffer(for: drawList.primitives) else { return }
+        let count = drawList.primitives.count
+        let overlayStart = drawList.overlayIndex ?? count, surfaceStart = min(drawList.surfaceIndex ?? overlayStart, overlayStart)
+        guard let encoder = commands.makeRenderCommandEncoder(descriptor: Self.pass(into: swimming, clear: true)) else { return }
+        drawShapes(shapes, range: 0..<surfaceStart, size: swimming, with: encoder)
         encoder.endEncoding()
-        guard let encoder = commands.makeRenderCommandEncoder(descriptor: Self.pass(into: above, clear: true)) else { return }
+        guard let encoder = commands.makeRenderCommandEncoder(descriptor: Self.pass(into: floating, clear: true)) else { return }
+        drawShapes(shapes, range: surfaceStart..<overlayStart, size: floating, with: encoder)
         if let overlay, drawList.overlayIndex != nil { drawOverlay(overlay.indices, palette: overlay.palette, with: encoder) }
-        drawShapes(shapes, range: split..<count, size: above, with: encoder)
-        encoder.endEncoding()
-        guard let encoder = commands.makeRenderCommandEncoder(descriptor: Self.pass(into: target, clear: false)) else { return }
-        compose(below: below, above: above, into: target, scale: scene.pixelScale, with: encoder)
+        drawShapes(shapes, range: overlayStart..<count, size: floating, with: encoder)
         encoder.endEncoding()
     }
 
-    private static func pass(into texture: MTLTexture, clear: Bool) -> MTLRenderPassDescriptor {
-        let pass = MTLRenderPassDescriptor()
-        pass.colorAttachments[0].texture = texture
-        pass.colorAttachments[0].loadAction = clear ? .clear : .dontCare
-        pass.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
-        pass.colorAttachments[0].storeAction = .store
-        return pass
+    /// The colours the scene laid over the whole frame this time, for `encodeCovers`.
+    var covers: [Color] { drawList.covers }
+
+    /// Lays colours over a finished stage frame.
+    static func encodeCovers(_ covers: [Color], over target: MTLTexture, commands: MTLCommandBuffer) {
+        guard let shared, !covers.isEmpty, let encoder = commands.makeRenderCommandEncoder(descriptor: pass(into: target, load: true)) else { return }
+        drawCovers(covers, with: shared.stageCover, encoder: encoder)
+        encoder.endEncoding()
     }
 
-    private func drawBackdrop(_ texture: MTLTexture, with encoder: MTLRenderCommandEncoder) {
+    private static func drawCovers(_ covers: [Color], with pipeline: MTLRenderPipelineState, encoder: MTLRenderCommandEncoder) {
+        encoder.setRenderPipelineState(pipeline)
+        for cover in covers {
+            var color = SIMD4(Float(cover.red), Float(cover.green), Float(cover.blue), Float(cover.weight) * 255 / 256) / 255
+            encoder.setFragmentBytes(&color, length: MemoryLayout.size(ofValue: color), index: 0)
+            encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+        }
+    }
+
+    func encodeBackdropCopy(into target: MTLTexture, commands: MTLCommandBuffer) {
+        guard let backdropTexture, let encoder = commands.makeRenderCommandEncoder(descriptor: Self.pass(into: target, clear: false)) else { return }
         encoder.setRenderPipelineState(shared.backdrop)
-        encoder.setFragmentTexture(texture, index: 0)
+        encoder.setFragmentTexture(backdropTexture, index: 0)
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+        encoder.endEncoding()
     }
 
-    private func compose(below: MTLTexture, above: MTLTexture, into target: MTLTexture, scale: Double, with encoder: MTLRenderCommandEncoder) {
-        let light = WaterSurface.light
-        var look = (
-            SIMD4<Float>(Float(target.width), Float(target.height), Float(Double(below.width) / scale), Float(Double(below.height) / scale)),
-            SIMD4<Float>(Self.refraction, Self.lightFocus, Self.waveRelief, water == nil ? 0 : 1),
-            SIMD4<Float>(Float(light.red) / 255, Float(light.green) / 255, Float(light.blue) / 255, Self.lightNetStrength)
-        )
-        encoder.setRenderPipelineState(shared.compose)
-        encoder.setFragmentTexture(below, index: 0)
-        encoder.setFragmentTexture(above, index: 1)
-        encoder.setFragmentTexture(water?.shape, index: 2)
-        encoder.setFragmentBytes(&look, length: MemoryLayout.size(ofValue: look), index: 0)
-        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
-    }
-
-    /// Moves the waves on by one frame, starting with this frame's drops, then works out their slopes for shading.
-    private func simulateWater(dropping drops: [WaterSurface.Drop], commands: MTLCommandBuffer) {
+    /// Moves the waves on by one frame, starting with the scene's new drops, and writes their slopes,
+    /// curvature and height into `waves` (`waterGrid` in size).
+    func encodeWater(_ surface: WaterSurface, into waves: MTLTexture, commands: MTLCommandBuffer) {
         guard var water, let encoder = commands.makeComputeCommandEncoder() else { return }
+        let drops = surface.takeDrops()
         var cells = drops.map { drop in
             SIMD4<Float>(Float(drop.disc.center.x / Self.waterCell - 0.5), Float(drop.disc.center.y / Self.waterCell - 0.5),
                          Float(max(1, drop.disc.radius / Self.waterCell)), Float(drop.strength * Self.dropDepth))
         }
         if cells.isEmpty { cells.append(.zero) }
-        let grid = MTLSize(width: water.shape.width, height: water.shape.height, depth: 1)
+        let grid = MTLSize(width: water.columns, height: water.rows, depth: 1)
         let group = MTLSize(width: 16, height: 16, depth: 1)
         encoder.setComputePipelineState(shared.waterStep)
         encoder.setTexture(water.obstacles, index: 2)
@@ -237,12 +187,44 @@ final class SceneRenderer {
         var shape = SIMD4<Float>(Float(water.time), Float(Self.waterCell), 0, 0)
         encoder.setComputePipelineState(shared.waterShape)
         encoder.setTexture(water.heights[0], index: 0)
-        encoder.setTexture(water.shape, index: 1)
-        encoder.setTexture(water.depth, index: 2)
+        encoder.setTexture(waves, index: 1)
         encoder.setBytes(&shape, length: MemoryLayout.size(ofValue: shape), index: 0)
         encoder.dispatchThreads(grid, threadsPerThreadgroup: group)
         encoder.endEncoding()
         self.water = water
+    }
+
+    /// The scene flat, without the water: the layers over the backdrop at the scene's own pixel size.
+    func snapshot(_ scene: LivingScene, at date: Date = Date()) -> CGImage? {
+        guard let target = makeTexture(scene.pixelWidth, scene.pixelHeight, storage: .shared),
+              let swimming = makeTexture(scene.pixelWidth, scene.pixelHeight), let floating = makeTexture(scene.pixelWidth, scene.pixelHeight),
+              let backdropTexture, let commands = shared.queue.makeCommandBuffer() else { return nil }
+        record(scene, at: date)
+        encodeLayers(swimming: swimming, floating: floating, commands: commands)
+        guard let encoder = commands.makeRenderCommandEncoder(descriptor: Self.pass(into: target, clear: false)) else { return nil }
+        encoder.setRenderPipelineState(shared.flatten)
+        encoder.setFragmentTexture(backdropTexture, index: 0)
+        encoder.setFragmentTexture(swimming, index: 1)
+        encoder.setFragmentTexture(floating, index: 2)
+        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+        Self.drawCovers(drawList.covers, with: shared.cover, encoder: encoder)
+        encoder.endEncoding()
+        commands.commit()
+        commands.waitUntilCompleted()
+        let image = PixelBuffer(width: target.width, height: target.height)
+        image.pixels.withUnsafeMutableBytes { bytes in
+            target.getBytes(bytes.baseAddress!, bytesPerRow: target.width * 4, from: MTLRegionMake2D(0, 0, target.width, target.height), mipmapLevel: 0)
+        }
+        return image.makeImage()
+    }
+
+    private static func pass(into texture: MTLTexture, clear: Bool = false, load: Bool = false) -> MTLRenderPassDescriptor {
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = texture
+        pass.colorAttachments[0].loadAction = clear ? .clear : load ? .load : .dontCare
+        pass.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
+        pass.colorAttachments[0].storeAction = .store
+        return pass
     }
 
     private func drawOverlay(_ texture: MTLTexture, palette: [SIMD4<Float>], with encoder: MTLRenderCommandEncoder) {
@@ -263,7 +245,7 @@ final class SceneRenderer {
 
     /// Reuses one of two buffers, growing it only when a frame has more shapes than ever before.
     private func shapeBuffer(for primitives: [Primitive]) -> MTLBuffer? {
-        bufferIndex = (bufferIndex + 1) % Self.framesInFlight
+        bufferIndex = (bufferIndex + 1) % shapeBuffers.count
         let length = max(1, primitives.count) * MemoryLayout<Primitive>.stride
         if (shapeBuffers[bufferIndex]?.length ?? 0) < length {
             shapeBuffers[bufferIndex] = shared.device.makeBuffer(length: length * 5 / 4, options: .storageModeShared)
@@ -275,10 +257,10 @@ final class SceneRenderer {
         return buffer
     }
 
-    private func makeLayer(width: Int, height: Int) -> MTLTexture? {
+    private func makeTexture(_ width: Int, _ height: Int, storage: MTLStorageMode = .private) -> MTLTexture? {
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.pixelFormat, width: width, height: height, mipmapped: false)
         descriptor.usage = [.renderTarget, .shaderRead]
-        descriptor.storageMode = .private
+        descriptor.storageMode = storage
         return shared.device.makeTexture(descriptor: descriptor)
     }
 
@@ -292,28 +274,28 @@ final class SceneRenderer {
             return shared.device.makeTexture(descriptor: descriptor)
         }
         guard let first = texture(.rg32Float, [.shaderRead, .shaderWrite]), let second = texture(.rg32Float, [.shaderRead, .shaderWrite]),
-              let shape = texture(.rgba16Float, [.shaderRead, .shaderWrite]), let obstacles = texture(.r8Unorm, .shaderRead),
-              let depth = texture(.r32Float, .shaderRead) else { return nil }
+              let obstacles = texture(.r8Unorm, .shaderRead) else { return nil }
         let flat = [Float](repeating: 0, count: columns * rows * 2)
         for heights in [first, second] {
             flat.withUnsafeBytes { heights.replace(region: MTLRegionMake2D(0, 0, columns, rows), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: columns * 8) }
         }
-        var mask = [UInt8](repeating: 0, count: columns * rows), depths = [Float](repeating: 0, count: columns * rows)
+        var mask = [UInt8](repeating: 0, count: columns * rows)
         for row in 0..<rows {
             for column in 0..<columns {
                 let center = Point(x: (Double(column) + 0.5) * Self.waterCell, y: (Double(row) + 0.5) * Self.waterCell)
-                depths[row * columns + column] = Float(surface.depth(center))
                 // A cell counts as blocked when it lies wholly under the obstacle, so the water reaches its rim.
                 if surface.obstacles.contains(where: { center.distance(to: $0.center) < $0.radius - Self.waterCell }) { mask[row * columns + column] = 255 }
             }
         }
         mask.withUnsafeBytes { obstacles.replace(region: MTLRegionMake2D(0, 0, columns, rows), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: columns) }
-        depths.withUnsafeBytes { depth.replace(region: MTLRegionMake2D(0, 0, columns, rows), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: columns * 4) }
-        return Water(heights: [first, second], shape: shape, obstacles: obstacles, depth: depth)
+        return Water(heights: [first, second], obstacles: obstacles, columns: columns, rows: rows)
     }
 
     private func uploadNewLayers(of scene: LivingScene) {
-        if let backdrop = scene.takeNewBackdrop() { backdropTexture = upload(backdrop) }
+        if let backdrop = scene.takeNewBackdrop() {
+            backdropTexture = upload(backdrop)
+            backdropVersion += 1
+        }
         if let image = scene.takeNewOverlay() { overlay = uploadIndexed(image) }
     }
 

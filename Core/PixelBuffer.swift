@@ -61,6 +61,8 @@ final class PixelBuffer: Canvas {
         }
     }
 
+    func placeSurface() {}
+
     func placeOverlay() {}
 
     func makeImage() -> CGImage? {
