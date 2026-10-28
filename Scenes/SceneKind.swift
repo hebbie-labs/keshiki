@@ -8,9 +8,9 @@ enum SceneKind: String, Codable, CaseIterable {
         }
     }
 
-    func make(aspectRatio: Double, settings: KeshikiSettings) -> LivingScene {
+    func make(aspectRatio: Double, settings: KeshikiSettings, koiPond: KoiPondSettings = KoiPondSettings()) -> LivingScene {
         switch self {
-        case .koiPond: return KoiPondScene(aspectRatio: aspectRatio, settings: settings)
+        case .koiPond: return KoiPondScene(aspectRatio: aspectRatio, settings: settings, options: koiPond)
         }
     }
 }

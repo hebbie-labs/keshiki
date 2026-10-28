@@ -2,8 +2,8 @@ import Foundation
 
 /// Reads and writes Keshiki's settings, and once brings over what Wallpapers 1.x had saved.
 enum SettingsStore {
-    static let generalKey = "settings"
-    static let koiPondKey = "koiPond.settings"
+    static let generalKey = SharedSettings.generalKey
+    static let koiPondKey = SharedSettings.koiPondKey
     static let koiMemoryKey = "koiPond.memory"
     static let originalDesktopPicturesKey = "originalDesktopPictures"
 
@@ -18,6 +18,22 @@ enum SettingsStore {
 
     static func save<Value: Encodable>(_ value: Value, as key: String) {
         UserDefaults.standard.set(try? JSONEncoder().encode(value), forKey: key)
+        if key == generalKey || key == koiPondKey { shareWithSandboxes() }
+    }
+
+    /// The screensaver can't read our defaults, so it gets a copy in its container (macOS asks once whether
+    /// Keshiki may access another app's data). The wallpaper extension reads our defaults directly and only
+    /// needs to hear that they changed.
+    static func shareWithSandboxes() {
+        let defaults = UserDefaults.standard
+        let shared = [generalKey, koiPondKey].reduce(into: [String: Data]()) { $0[$1] = defaults.data(forKey: $1) }
+        let file = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Containers/com.apple.ScreenSaver.Engine.legacyScreenSaver/Data")
+            .appendingPathComponent(SharedSettings.fileInHome)
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        (shared as NSDictionary).write(to: file, atomically: true)
+        CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
+                                             CFNotificationName(SharedSettings.changedNotification as CFString), nil, nil, true)
     }
 
     /// The app used to be called Wallpapers. Its settings held both the general and the koi fields,

@@ -28,10 +28,21 @@ its first launch.
 - **Every display**, one scene for all of them.
 - **Dawn to night on your clock** (or synced with dark mode), fireflies after
   dark, rain on demand.
-- **Lock screen:** a still of the scene becomes the desktop picture, which the
-  lock screen shows; it follows the time of day and your own picture comes back
-  when you quit. *Install Screensaver…* adds the animated scene as a system
-  screensaver too.
+- **Lock screen, animated (macOS 26+):** Keshiki brings a wallpaper extension.
+  Choose *Animate Lock Screen…* in the menu (or *System Settings → Wallpaper*)
+  and pick **Koi Pond** under *Keshiki*: the pond then plays on the lock screen
+  and as the screensaver, with your theme, water and mood. macOS has no public
+  API for this, so the extension speaks the system's private wallpaper protocol
+  (as [Phosphene](https://github.com/kageroumado/phosphene) does) and a macOS
+  update may break it; the still below is the fallback.
+- **Lock screen, still (macOS 14–25):** apps can't draw on the lock screen
+  there. A still of the scene becomes the desktop picture, which the lock screen
+  shows; it follows the time of day and your own picture comes back when you
+  quit. For movement, *Install Screensaver…* adds the animated scene as a
+  system screensaver: set it to start after a few minutes and turn on
+  *System Settings → Lock Screen → Require password after screen saver begins*,
+  and the pond plays until you type. The screensaver follows the app's
+  settings (macOS asks once whether Keshiki may access another app's data).
 - **Only where you can see it:** a display's scene plays while its desktop is
   free. As soon as any app window lies on that display (focused or not), or the
   desktop is covered, it rests: the last frame stays, and nothing is simulated
@@ -66,7 +77,7 @@ its first launch.
 ## Development
 
 ```sh
-make run       # build build/Keshiki.app (with the screensaver inside) and launch it
+make run       # build build/Keshiki.app (with the screensaver and wallpaper inside) and launch it
 make dmg       # build build/Keshiki-<version>.dmg
 make test      # build and run the checks
 ```
@@ -109,6 +120,11 @@ The version comes from `CFBundleShortVersionString` in `App/Info.plist`.
   - `StatusMenu` / `MenuEntry` build the menu; `SettingsStore` persists
     settings and migrates from Wallpapers 1.x.
 - `Saver/` — `KeshikiSaverView`, the scenes as a `.saver` bundle.
+- `Wallpaper/` — the scenes as a system wallpaper extension (macOS 26+).
+  `AgentConnection` answers the private WallpaperAgent protocol (`Bridge.h`),
+  `Surfaces` draws a scene per desktop, lock screen or preview into a layer the
+  agent hosts, and `SettingsTile` is the tile in System Settings. Both the
+  screensaver and the extension get the app's settings through `SharedSettings`.
 - `Tests/` — runnable checks (learning, time of day, settings migration,
   drawing, and that the GPU draws pixel for pixel like the CPU).
 - `Assets/` — app icon.
