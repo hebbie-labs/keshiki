@@ -61,10 +61,15 @@ its first launch.
   water bends the view of the floor, focuses sunlight into a moving net of
   light, and swallows light with depth, so the floor fades into green-blue
   where the pond is deep. Lily pads and koi cast their shadows onto the floor,
-  further off the deeper it lies. Clicks, food, rain, the frog and the goose
-  all make waves.
-- **A living pond.** Clear water over a sunlit floor, water plants along the
-  shallow edges, and schools of Japanese pond fish (hime-medaka, tanago
+  further off the deeper it lies. Clicks, food, rain, the frog, the goose and
+  the fish themselves all make waves; the goose pushes a bow wave, the frog
+  and the rain throw up droplets, and fireflies show again in the water.
+- **Things move like things.** A koi's body is a chain with inertia: the tail
+  swings out in a turn and the koi leans into it. Lily pads drift on their
+  stems and spring back, duckweed and the ball are pushed by waves and fish.
+- **A living pond.** Clear water over a sunlit floor with cushions of moss and
+  algae, seagrass streaming in the current and bending aside for the koi,
+  sweet flag and reeds swaying at the edge, and schools of Japanese pond fish (hime-medaka, tanago
   bitterlings, oikawa and motsugo) that swim in bursts and glides.
 - **They learn your routine.** Feed them at the same spot around the same time
   on two different days and they'll be waiting there.
@@ -115,15 +120,17 @@ wallpaper extension and the checks, so it must not depend on `App/`.
   - `WaterStage` lays it all out in 3D: the painted backdrop as the floor's
     basin, the swimming layer under the surface, and the surface moved by the
     waves, carrying the floating layer and reflecting the sky (`StageShaders`).
+    A scene's `Standing` sprites (reeds) stand up out of the water at the edge,
+    facing the camera and swaying.
   - `PixelBuffer` paints the static layers once on the CPU; their CPU copies
     are dropped after upload.
   - `Atmosphere` (time of day, rain, fireflies) and `KeshikiSettings`.
 - `Scenes/` — `SceneKind` lists every scene; each has its own folder.
   - `KoiPond/` — `KoiPondScene` owns a `PondWorld` (`Koi`, `FishSchool`,
-    `Frog`, `Goose`, `Ball`, `LilyPad`, duckweed, food, and the ripples they
-    make in the water), the painted
-    `PondFloor` (backdrop) and lily pads (overlay), the learning in `KoiMemory`
-    and `KoiPondSettings`.
+    `Frog`, `Goose`, `Ball`, `LilyPad`, duckweed, `Seagrass`, food, droplets
+    in `Splashes`, and the ripples they make in the water, which push what's
+    `Floating`), the painted `PondFloor` (backdrop), the `Reeds` at the edge,
+    the learning in `KoiMemory` and `KoiPondSettings`.
 - `App/` — the menu bar app (AppKit, no Xcode project needed).
   - `KeshikiController` wires everything and runs the 30 fps frame timer.
   - `WindowWatcher` knows which displays have app windows on them.
