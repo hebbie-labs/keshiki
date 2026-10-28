@@ -54,6 +54,7 @@ final class Frog {
         jump = Jump(from: padIndex, to: target)
         restingFor = random(Self.restSeconds)
         world.addRipple(at: pad.position, radius: pad.radius, strength: 0.7)
+        world.splash(at: pad.position, droplets: 6, power: 40)
     }
 
     private func land(in world: PondWorld) {
@@ -62,6 +63,7 @@ final class Frog {
         jump = nil
         let pad = world.pads[padIndex]
         world.addRipple(at: pad.position, radius: pad.radius, strength: 0.8)
+        world.splash(at: pad.position, droplets: 12, power: 55)
     }
 
     private func positionAndLift(on pads: [LilyPad]) -> (Point, Double) {

@@ -16,6 +16,7 @@ final class PondWorld {
     let frog: Frog
     private(set) var kois: [Koi] = []
     var food: [FoodPellet] = []
+    var droplets: [Droplet] = []
     let water: WaterSurface
     private(set) var goose: Goose?
     private(set) var ball: Ball?
@@ -51,6 +52,7 @@ final class PondWorld {
         regrowDuckweed(dt: dt)
         moveFloating(dt: dt)
         moveSeagrass(dt: dt)
+        moveDroplets(dt: dt)
         schools.forEach { $0.update(in: self, dt: dt) }
         kois.forEach { $0.update(in: self, dt: dt) }
         frog.update(in: self, dt: dt)
@@ -72,6 +74,7 @@ final class PondWorld {
         frog.draw(on: canvas, time: time, pads: pads)
         ball?.draw(on: canvas)
         goose?.draw(on: canvas, time: time)
+        drawDroplets(on: canvas)
     }
 
     func touchWater(at point: Point) {

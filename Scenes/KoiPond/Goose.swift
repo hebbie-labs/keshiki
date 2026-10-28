@@ -8,11 +8,14 @@ final class Goose {
     private(set) var isLeaving = false
     private var destination: Point
     private var paddleTimer = 0.0
+    private var bowTimer = 0.0
 
     private static let scale = 1.6
     private static let speed = 0.6
     private static let turnRate = 0.02
     private static let paddleEverySeconds = 0.6
+    /// The breast pushes the water aside as the goose swims: a bow wave that opens into a V behind it.
+    private static let bowEverySeconds = 0.12
     private static let white = Color(0xf6f4ee)
 
     init(in size: SceneSize) {
@@ -53,6 +56,12 @@ final class Goose {
     }
 
     private func paddle(in world: PondWorld, dt: Double) {
+        bowTimer += dt
+        if bowTimer >= Self.bowEverySeconds {
+            bowTimer = 0
+            let bow = position.moved(by: 14 * Self.scale, heading: heading)
+            for side in [-1.0, 1.0] { world.addRipple(at: bow.moved(by: 6, heading: heading + side * .pi / 2), radius: 2.5, strength: 0.22) }
+        }
         paddleTimer += dt
         guard paddleTimer >= Self.paddleEverySeconds else { return }
         paddleTimer = 0
