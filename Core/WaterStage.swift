@@ -1,14 +1,12 @@
-import AppKit
+import CoreGraphics
 import Metal
 import QuartzCore
-import RealityKit
+import simd
 
-/// A scene with water, in 3D, seen from a slightly tilted camera: the painted floor as a basin at its real depth,
+/// A scene with water, in 3D, seen from a slightly tilted camera: the painted floor as a basin at its depth,
 /// what swims as a pixel-art layer under the surface, and the surface itself, moved by the simulated waves,
 /// carrying what floats and reflecting the sky and the sun. The water between them bends, shades and colours
-/// what lies below (`StageShaders`). RealityKit draws it into a texture on demand, so the app's own clock
-/// still decides when frames happen. One stage per display.
-@MainActor
+/// what lies below (`StageShaders`). Each frame is one GPU submission. One stage per display.
 final class WaterStage {
     private struct Camera {
         let position: SIMD3<Float>
@@ -40,6 +38,17 @@ final class WaterStage {
             let x = dot(offset, right) / ahead / (tanHalf * aspect), y = dot(offset, up) / ahead / tanHalf
             return Point(x: Double(x + 1) / 2, y: Double(1 - y) / 2)
         }
+
+        var viewProjection: simd_float4x4 {
+            let back = -forward
+            let view = simd_float4x4(columns: (SIMD4(right.x, up.x, back.x, 0), SIMD4(right.y, up.y, back.y, 0),
+                                               SIMD4(right.z, up.z, back.z, 0),
+                                               SIMD4(-dot(right, position), -dot(up, position), -dot(back, position), 1)))
+            let near: Float = 0.1, far: Float = 100, focal = 1 / tanHalf
+            let projection = simd_float4x4(columns: (SIMD4(focal / aspect, 0, 0, 0), SIMD4(0, focal, 0, 0),
+                                                     SIMD4(0, 0, far / (near - far), -1), SIMD4(0, 0, near * far / (near - far), 0)))
+            return projection * view
+        }
     }
 
     /// The pond's rectangle on the water: as wide as the screen at its far edge, reaching down to the near edge.
@@ -61,9 +70,74 @@ final class WaterStage {
         }
     }
 
-    nonisolated private static let tilt: Float = 25 * .pi / 180
-    nonisolated private static let fieldOfView: Float = 32
-    nonisolated private static let cameraHeight: Float = 10
+    /// Must match `StageVertex` in the shader.
+    private struct Vertex {
+        var position: SIMD3<Float>
+        var normal: SIMD3<Float>
+        var spot: SIMD2<Float>
+    }
+
+    private struct Mesh {
+        let vertices: MTLBuffer
+        let indices: MTLBuffer
+        let count: Int
+    }
+
+    /// Must match `Stage` in the shader.
+    private struct Uniforms {
+        var viewProjection: simd_float4x4
+        var eye: SIMD4<Float>
+        var pond: SIMD4<Float>
+        var water: SIMD4<Float>
+        var sun: SIMD4<Float>
+        var slant: SIMD4<Float>
+    }
+
+    private struct Shared {
+        let floor: MTLRenderPipelineState
+        let swimmers: MTLRenderPipelineState
+        let surface: MTLRenderPipelineState
+        let writeDepth: MTLDepthStencilState
+        let readDepth: MTLDepthStencilState
+
+        init?() {
+            guard let device = SceneRenderer.device, let library = try? device.makeLibrary(source: StageShaders.source, options: nil) else { return nil }
+            func pipeline(_ fragment: String, premultiplied: Bool? = nil) -> MTLRenderPipelineState? {
+                let descriptor = MTLRenderPipelineDescriptor()
+                descriptor.vertexFunction = library.makeFunction(name: "stageVertex")
+                descriptor.fragmentFunction = library.makeFunction(name: fragment)
+                descriptor.depthAttachmentPixelFormat = .depth32Float
+                let attachment = descriptor.colorAttachments[0]!
+                attachment.pixelFormat = WaterStage.pixelFormat
+                if let premultiplied {
+                    attachment.isBlendingEnabled = true
+                    attachment.sourceRGBBlendFactor = premultiplied ? .one : .sourceAlpha
+                    attachment.destinationRGBBlendFactor = .oneMinusSourceAlpha
+                    attachment.sourceAlphaBlendFactor = .one
+                    attachment.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+                }
+                return try? device.makeRenderPipelineState(descriptor: descriptor)
+            }
+            func depth(write: Bool) -> MTLDepthStencilState? {
+                let descriptor = MTLDepthStencilDescriptor()
+                descriptor.depthCompareFunction = .less
+                descriptor.isDepthWriteEnabled = write
+                return device.makeDepthStencilState(descriptor: descriptor)
+            }
+            guard let floor = pipeline("floorFragment"), let swimmers = pipeline("swimmersFragment", premultiplied: false),
+                  let surface = pipeline("surfaceFragment", premultiplied: true),
+                  let writeDepth = depth(write: true), let readDepth = depth(write: false) else { return nil }
+            self.floor = floor
+            self.swimmers = swimmers
+            self.surface = surface
+            self.writeDepth = writeDepth
+            self.readDepth = readDepth
+        }
+    }
+
+    private static let tilt: Float = 25 * .pi / 180
+    private static let fieldOfView: Float = 32
+    private static let cameraHeight: Float = 10
     /// Seen through water, everything below looks this much shallower than it is (1 / 1.33), so the floor and
     /// the swimmers are placed at that depth; the shaders work with the real one.
     private static let apparentDepth: Float = 0.75
@@ -74,25 +148,32 @@ final class WaterStage {
     /// The sun stands a little behind and to the left of the viewer, 26° from straight up: then the light a wave
     /// casts onto the floor lands where the wave is seen, while shadows still fall away the deeper the floor.
     private static let sunDirection = normalize(SIMD3<Float>(-0.12, 0.9, 0.42))
+    /// The same sunlight bent into the water: how far it moves sideways per unit of depth (sin 26° / 1.33 → tan).
+    private static let sunSlant = SIMD2<Float>(-0.096, 0.336)
+    /// How steep the waves look to the light.
+    private static let waveRelief: Float = 6
 
-    nonisolated static let pixelFormat = MTLPixelFormat.bgra8Unorm_srgb
+    static let pixelFormat = MTLPixelFormat.bgra8Unorm_srgb
+    private static let shared = Shared()
 
     let scene: LivingScene
+    private let shared: Shared
     private let layers: SceneRenderer
     private let surface: WaterSurface
-    private let renderer: RealityRenderer
     private let camera: Camera
     private let pond: Pond
-    private let floorTexture: LowLevelTexture
-    private let swimming: LowLevelTexture
-    private let floating: LowLevelTexture
-    private let waves: LowLevelTexture
-    private let models: [ModelEntity]
-    private var floorVersion = 0
-    private var waterColor: Color?
+    private let swimming: MTLTexture
+    private let floating: MTLTexture
+    private let waves: MTLTexture
+    private let sky: MTLTexture
+    private let floorMesh: Mesh
+    private let swimmersMesh: Mesh
+    private let surfaceMesh: Mesh
+    private var uniforms: Uniforms
+    private var depth: MTLTexture?
 
     /// The pond's width to length, so the scene can be made in that shape.
-    nonisolated static func pondAspect(screenAspect: Double) -> Double {
+    static func pondAspect(screenAspect: Double) -> Double {
         let pond = Pond(seenBy: Camera(aspect: Float(screenAspect)))
         return Double(pond.width / pond.length)
     }
@@ -100,7 +181,7 @@ final class WaterStage {
     static func configure(_ layer: CAMetalLayer, width: Int, height: Int) {
         layer.device = SceneRenderer.device
         layer.pixelFormat = pixelFormat
-        layer.framebufferOnly = false
+        layer.framebufferOnly = true
         layer.maximumDrawableCount = 2
         layer.drawableSize = CGSize(width: width, height: height)
         layer.magnificationFilter = .nearest
@@ -109,122 +190,90 @@ final class WaterStage {
     }
 
     init?(scene: LivingScene, screenAspect: Double) {
-        guard let surface = scene.water, let layers = SceneRenderer(scene: scene), let grid = layers.waterGrid,
-              let renderer = try? RealityRenderer() else { return nil }
-        func texture(_ format: MTLPixelFormat, _ width: Int, _ height: Int, _ usage: MTLTextureUsage) -> LowLevelTexture? {
-            try? LowLevelTexture(descriptor: .init(pixelFormat: format, width: width, height: height, textureUsage: usage))
+        guard let shared = Self.shared, let device = SceneRenderer.device, let surface = scene.water,
+              let layers = SceneRenderer(scene: scene), let grid = layers.waterGrid else { return nil }
+        func texture(_ format: MTLPixelFormat, _ width: Int, _ height: Int, _ usage: MTLTextureUsage) -> MTLTexture? {
+            let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: format, width: width, height: height, mipmapped: false)
+            descriptor.usage = usage
+            descriptor.storageMode = .private
+            return device.makeTexture(descriptor: descriptor)
         }
-        let layerUsage: MTLTextureUsage = [.renderTarget, .shaderRead]
-        guard let floorTexture = texture(SceneRenderer.pixelFormat, scene.pixelWidth, scene.pixelHeight, layerUsage),
-              let swimming = texture(SceneRenderer.pixelFormat, scene.pixelWidth, scene.pixelHeight, layerUsage),
-              let floating = texture(SceneRenderer.pixelFormat, scene.pixelWidth, scene.pixelHeight, layerUsage),
+        let camera = Camera(aspect: Float(screenAspect)), pond = Pond(seenBy: camera)
+        let size = SIMD2(Float(scene.pixelWidth), Float(scene.pixelHeight)) / Float(scene.pixelScale)
+        let unit = pond.width / size.x
+        let depthAt = { (spot: Point) in Float(surface.depth(Point(x: spot.x * Double(size.x), y: spot.y * Double(size.y)))) }
+        guard let swimming = texture(SceneRenderer.pixelFormat, scene.pixelWidth, scene.pixelHeight, [.renderTarget, .shaderRead]),
+              let floating = texture(SceneRenderer.pixelFormat, scene.pixelWidth, scene.pixelHeight, [.renderTarget, .shaderRead]),
               let waves = texture(SceneRenderer.wavesFormat, grid.columns, grid.rows, [.shaderWrite, .shaderRead]),
-              let device = SceneRenderer.device, let library = try? device.makeLibrary(source: StageShaders.source, options: nil)
-        else { return nil }
+              let sky = Self.upload(Self.paintSky(), to: device),
+              let floorMesh = Self.grid(pond, columns: 160, rows: 110, device: device, height: { -depthAt($0) * unit * Self.apparentDepth }),
+              let swimmersMesh = Self.grid(pond, columns: 1, rows: 1, device: device, height: { _ in -Self.swimmerDepth * unit * Self.apparentDepth }),
+              let surfaceMesh = Self.grid(pond, columns: 200, rows: 140, device: device, height: { _ in 0 }) else { return nil }
         self.scene = scene
+        self.shared = shared
         self.layers = layers
         self.surface = surface
-        self.renderer = renderer
-        self.floorTexture = floorTexture
+        self.camera = camera
+        self.pond = pond
         self.swimming = swimming
         self.floating = floating
         self.waves = waves
-        camera = Camera(aspect: Float(screenAspect))
-        pond = Pond(seenBy: camera)
-
-        let size = SIMD2(Float(scene.pixelWidth), Float(scene.pixelHeight)) / Float(scene.pixelScale)
-        let unit = pond.width / size.x
-        do {
-            func material(_ shader: String, waves geometry: String? = nil, lit: Bool = true, transparent: Bool = false) throws -> CustomMaterial {
-                var material = try CustomMaterial(surfaceShader: .init(named: shader, in: library),
-                                                  geometryModifier: geometry.map { .init(named: $0, in: library) },
-                                                  lightingModel: lit ? .lit : .unlit)
-                material.baseColor.texture = .init(try TextureResource(from: floorTexture))
-                material.ambientOcclusion.texture = .init(try TextureResource(from: swimming))
-                material.emissiveColor.texture = .init(try TextureResource(from: floating))
-                material.custom = .init(value: SIMD4(size.x, size.y, unit, Self.swimmerDepth), texture: .init(try TextureResource(from: waves)))
-                material.faceCulling = .none
-                if transparent { material.blending = .transparent(opacity: .init(scale: 1)) }
-                return material
-            }
-            let floor = ModelEntity(mesh: try Self.grid(pond, columns: 160, rows: 110) { spot in
-                -Float(surface.depth(Point(x: spot.x * Double(size.x), y: spot.y * Double(size.y)))) * unit * Self.apparentDepth
-            }, materials: [try material("pondFloor")])
-            let swimmers = ModelEntity(mesh: try Self.grid(pond, columns: 2, rows: 2) { _ in -Self.swimmerDepth * unit * Self.apparentDepth },
-                                       materials: [try material("pondSwimmers", lit: false, transparent: true)])
-            let water = ModelEntity(mesh: try Self.grid(pond, columns: 200, rows: 140) { _ in 0 },
-                                    materials: [try material("pondSurface", waves: "pondWaves", transparent: true)])
-            // Both see-through layers lie flat one above the other, so draw them deepest first.
-            let group = ModelSortGroup()
-            swimmers.components.set(ModelSortGroupComponent(group: group, order: 0))
-            water.components.set(ModelSortGroupComponent(group: group, order: 1))
-            models = [floor, swimmers, water]
-
-            let eye = PerspectiveCamera()
-            eye.camera.fieldOfViewInDegrees = Self.fieldOfView
-            eye.look(at: .zero, from: camera.position, relativeTo: nil)
-            let sun = DirectionalLight()
-            sun.light.intensity = 3000
-            sun.light.color = NSColor(srgbRed: 1, green: 0.96, blue: 0.88, alpha: 1)
-            sun.look(at: .zero, from: Self.sunDirection * 10, relativeTo: nil)
-            let root = Entity()
-            ([eye, sun] + models).forEach { root.addChild($0) }
-            renderer.entities.append(root)
-            renderer.activeCamera = eye
-            if let sky = Self.paintSky().makeImage() {
-                renderer.lighting.resource = try EnvironmentResource(equirectangular: sky)
-            }
-            // Pixel art has no edges worth smoothing, and multisampling a whole display costs a lot.
-            renderer.cameraSettings.antialiasing = .none
-            renderer.cameraSettings.isToneMappingEnabled = false
-            renderer.cameraSettings.colorBackground = .color(CGColor(srgbRed: 0.1, green: 0.2, blue: 0.18, alpha: 1))
-        } catch {
-            return nil
-        }
+        self.sky = sky
+        self.floorMesh = floorMesh
+        self.swimmersMesh = swimmersMesh
+        self.surfaceMesh = surfaceMesh
+        uniforms = Uniforms(viewProjection: camera.viewProjection, eye: SIMD4(camera.position, Self.apparentDepth),
+                            pond: SIMD4(size.x, size.y, unit, Self.swimmerDepth), water: .zero,
+                            sun: SIMD4(Self.sunDirection, 0), slant: SIMD4(Self.sunSlant.x, Self.sunSlant.y, 0, 0))
     }
 
-    /// Records the scene, moves the water on (unless it's a still) and draws the stage into `target`,
-    /// then lays the scene's covers (the light of the time of day) over it before `completion`.
-    func render(into target: MTLTexture, at date: Date = Date(), simulate: Bool = true, completion: (@Sendable (MTLCommandBuffer) -> Void)? = nil) {
-        guard let commands = SceneRenderer.queue?.makeCommandBuffer() else { return }
+    /// Records the scene, moves the water on (unless it's a still), draws the stage into `target` and lays the
+    /// scene's covers (the light of the time of day) over it. `completion` gets the command buffer before it's
+    /// committed, e.g. to present a drawable.
+    func render(into target: MTLTexture, at date: Date = Date(), simulate: Bool = true, completion: ((MTLCommandBuffer) -> Void)? = nil) {
+        guard let commands = SceneRenderer.queue?.makeCommandBuffer(), let depth = depthTexture(for: target) else { return }
         layers.record(scene, at: date)
-        if layers.backdropVersion != floorVersion {
-            layers.encodeBackdropCopy(into: floorTexture.replace(using: commands), commands: commands)
-            floorVersion = layers.backdropVersion
+        layers.encodeLayers(swimming: swimming, floating: floating, commands: commands)
+        if simulate { layers.encodeWater(surface, into: waves, commands: commands) }
+        let color = surface.color
+        uniforms.water = SIMD4(pow(Float(color.red) / 255, 2.2), pow(Float(color.green) / 255, 2.2), pow(Float(color.blue) / 255, 2.2), Self.waveRelief)
+
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = target
+        pass.colorAttachments[0].loadAction = .clear
+        pass.colorAttachments[0].storeAction = .store
+        pass.depthAttachment.texture = depth
+        pass.depthAttachment.loadAction = .clear
+        pass.depthAttachment.storeAction = .dontCare
+        pass.depthAttachment.clearDepth = 1
+        if let encoder = commands.makeRenderCommandEncoder(descriptor: pass) {
+            encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+            encoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+            encoder.setVertexTexture(waves, index: 0)
+            for (index, texture) in [layers.backdrop, swimming, floating, waves, sky].enumerated() {
+                encoder.setFragmentTexture(texture, index: index)
+            }
+            encoder.setDepthStencilState(shared.writeDepth)
+            draw(floorMesh, with: shared.floor, lift: 0, encoder: encoder)
+            encoder.setDepthStencilState(shared.readDepth)
+            draw(swimmersMesh, with: shared.swimmers, lift: 0, encoder: encoder)
+            draw(surfaceMesh, with: shared.surface, lift: 1, encoder: encoder)
+            encoder.endEncoding()
         }
-        layers.encodeLayers(swimming: swimming.replace(using: commands), floating: floating.replace(using: commands), commands: commands)
-        if simulate { layers.encodeWater(surface, into: waves.replace(using: commands), commands: commands) }
+        SceneRenderer.encodeCovers(layers.covers, over: target, commands: commands)
+        completion?(commands)
         commands.commit()
-        if waterColor != surface.color { tintWater(surface.color) }
-        let covers = layers.covers
-        let finish: @Sendable () -> Void = {
-            guard let commands = SceneRenderer.queue?.makeCommandBuffer() else { return }
-            SceneRenderer.encodeCovers(covers, over: target, commands: commands)
-            completion?(commands)
-            commands.commit()
-        }
-        do {
-            let output = try RealityRenderer.CameraOutput(.singleProjection(colorTexture: target))
-            try renderer.updateAndRender(deltaTime: 1.0 / 30, cameraOutput: output, onComplete: { _ in finish() })
-        } catch {
-            finish()
-        }
     }
 
     /// A still of the current frame, e.g. for the lock screen; the water doesn't move on for it.
     func snapshot(width: Int, height: Int) -> CGImage? {
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.pixelFormat, width: width, height: height, mipmapped: false)
-        descriptor.usage = [.renderTarget, .shaderRead, .shaderWrite]
+        descriptor.usage = [.renderTarget, .shaderRead]
         descriptor.storageMode = .shared
         guard let texture = SceneRenderer.device?.makeTexture(descriptor: descriptor) else { return nil }
-        let done = DispatchSemaphore(value: 0)
-        render(into: texture, simulate: false) { commands in commands.addCompletedHandler { _ in done.signal() } }
-        // The renderer may report back on the main thread, so keep it turning while waiting.
-        let deadline = Date().addingTimeInterval(5)
-        while done.wait(timeout: .now()) == .timedOut {
-            guard Date() < deadline else { return nil }
-            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
-        }
+        var finished: MTLCommandBuffer?
+        render(into: texture, simulate: false) { finished = $0 }
+        finished?.waitUntilCompleted()
         let image = PixelBuffer(width: width, height: height)
         image.pixels.withUnsafeMutableBytes { bytes in
             texture.getBytes(bytes.baseAddress!, bytesPerRow: width * 4, from: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0)
@@ -235,7 +284,7 @@ final class WaterStage {
     /// The pond spot (0...1 across the pond) under a spot on the screen (0...1, origin top-left).
     func pondSpot(forViewSpot spot: Point) -> Point {
         let point = camera.water(at: spot)
-        return Point(x: Double((point.x - pond.point(at: Point(x: 0, y: 0)).x) / pond.width), y: Double((point.z - pond.far) / pond.length))
+        return Point(x: Double(point.x / pond.width + 0.5), y: Double((point.z - pond.far) / pond.length))
     }
 
     /// Where a pond spot shows on the screen.
@@ -243,26 +292,43 @@ final class WaterStage {
         camera.spot(of: pond.point(at: spot))
     }
 
-    private func tintWater(_ color: Color) {
-        waterColor = color
-        let tint = NSColor(srgbRed: CGFloat(color.red) / 255, green: CGFloat(color.green) / 255, blue: CGFloat(color.blue) / 255, alpha: 1)
-        for model in models {
-            guard var material = model.model?.materials.first as? CustomMaterial else { continue }
-            material.baseColor.tint = tint
-            model.model?.materials = [material]
-        }
+    private func draw(_ mesh: Mesh, with pipeline: MTLRenderPipelineState, lift: Float, encoder: MTLRenderCommandEncoder) {
+        var lift = lift
+        encoder.setRenderPipelineState(pipeline)
+        encoder.setVertexBuffer(mesh.vertices, offset: 0, index: 0)
+        encoder.setVertexBytes(&lift, length: MemoryLayout<Float>.size, index: 2)
+        encoder.drawIndexedPrimitives(type: .triangle, indexCount: mesh.count, indexType: .uint32, indexBuffer: mesh.indices, indexBufferOffset: 0)
     }
 
-    /// A flat grid over the pond and the margin around it, with the pond's 0...1 as texture coordinates
-    /// and each vertex lifted to `height(spot)`.
-    private static func grid(_ pond: Pond, columns: Int, rows: Int, height: (Point) -> Float) throws -> MeshResource {
-        var positions: [SIMD3<Float>] = [], coordinates: [SIMD2<Float>] = [], indices: [UInt32] = []
+    /// Depth only matters while a frame is drawn, so it lives in tile memory and takes no RAM.
+    private func depthTexture(for target: MTLTexture) -> MTLTexture? {
+        if let depth, depth.width == target.width, depth.height == target.height { return depth }
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .depth32Float, width: target.width, height: target.height, mipmapped: false)
+        descriptor.usage = .renderTarget
+        descriptor.storageMode = .memoryless
+        depth = SceneRenderer.device?.makeTexture(descriptor: descriptor)
+        return depth
+    }
+
+    /// A grid over the pond and the margin around it, with the pond's 0...1 as `spot`,
+    /// each vertex lifted to `height(spot)` and its normal following the slope.
+    private static func grid(_ pond: Pond, columns: Int, rows: Int, device: MTLDevice, height: (Point) -> Float) -> Mesh? {
+        let step = SIMD2(Double(1 + 2 * margin) / Double(columns), Double(1 + 2 * margin) / Double(rows))
+        func spot(_ column: Int, _ row: Int) -> Point {
+            Point(x: Double(-margin) + Double(column) * step.x, y: Double(-margin) + Double(row) * step.y)
+        }
+        func position(_ column: Int, _ row: Int) -> SIMD3<Float> {
+            let spot = spot(column, row)
+            return pond.point(at: spot, height: height(spot))
+        }
+        var vertices: [Vertex] = [], indices: [UInt32] = []
         for row in 0...rows {
             for column in 0...columns {
-                let spot = Point(x: Double(-margin + (1 + 2 * margin) * Float(column) / Float(columns)),
-                                 y: Double(-margin + (1 + 2 * margin) * Float(row) / Float(rows)))
-                positions.append(pond.point(at: spot, height: height(spot)))
-                coordinates.append(SIMD2(Float(spot.x), Float(spot.y)))
+                let across = position(min(column + 1, columns), row) - position(max(column - 1, 0), row)
+                let along = position(column, min(row + 1, rows)) - position(column, max(row - 1, 0))
+                let spot = spot(column, row)
+                vertices.append(Vertex(position: position(column, row), normal: normalize(cross(along, across)),
+                                       spot: SIMD2(Float(spot.x), Float(spot.y))))
             }
         }
         let stride = UInt32(columns + 1)
@@ -272,11 +338,20 @@ final class WaterStage {
                 indices += [corner, corner + stride, corner + 1, corner + 1, corner + stride, corner + stride + 1]
             }
         }
-        var mesh = MeshDescriptor()
-        mesh.positions = MeshBuffers.Positions(positions)
-        mesh.textureCoordinates = MeshBuffers.TextureCoordinates(coordinates)
-        mesh.primitives = .triangles(indices)
-        return try MeshResource.generate(from: [mesh])
+        guard let vertexBuffer = device.makeBuffer(bytes: vertices, length: vertices.count * MemoryLayout<Vertex>.stride),
+              let indexBuffer = device.makeBuffer(bytes: indices, length: indices.count * MemoryLayout<UInt32>.stride) else { return nil }
+        return Mesh(vertices: vertexBuffer, indices: indexBuffer, count: indices.count)
+    }
+
+    private static func upload(_ image: PixelBuffer, to device: MTLDevice) -> MTLTexture? {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: pixelFormat, width: image.width, height: image.height, mipmapped: false)
+        descriptor.usage = .shaderRead
+        descriptor.storageMode = .shared
+        guard let texture = device.makeTexture(descriptor: descriptor) else { return nil }
+        image.pixels.withUnsafeBytes {
+            texture.replace(region: MTLRegionMake2D(0, 0, image.width, image.height), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: image.width * 4)
+        }
+        return texture
     }
 
     /// The sky the water reflects, as a panorama: blue overhead, paler towards the horizon, with soft clouds,

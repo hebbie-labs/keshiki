@@ -1,116 +1,139 @@
-/// RealityKit shaders for `WaterStage`, compiled at runtime like `Shaders`. RealityKit's own header is
-/// inlined (`RealityKitHeader`, made by the Makefile from the SDK), so building needs no Metal toolchain.
-///
-/// Every material gets the same textures, in slots RealityKit leaves to custom shaders:
-/// base colour = the painted floor, ambient occlusion = what swims, emissive = what floats, custom = the waves.
-/// Its custom value holds the pond's width and height in design units, world units per design unit,
-/// and how deep the swimmers swim; its base colour tint is the colour of the water.
+/// Metal shaders for `WaterStage`, compiled at runtime like `Shaders`.
 enum StageShaders {
-    static let source = RealityKitHeader.source + """
-
+    static let source = """
+    #include <metal_stdlib>
     using namespace metal;
+
+    struct StageVertex {
+        float3 position;
+        float3 normal;
+        float2 spot;    // 0...1 across the pond
+    };
+
+    struct Stage {
+        float4x4 viewProjection;
+        float4 eye;     // camera position; how deep things look compared to how deep they are
+        float4 pond;    // width and height in design units, world units per design unit, depth of the swimmers
+        float4 water;   // the water's colour (linear); how steep the waves look
+        float4 sun;     // towards the sun
+        float4 slant;   // how far sunlight moves sideways per unit of depth in the water (design x, y)
+    };
+
+    struct Fragment {
+        float4 position [[position]];
+        float3 world;
+        float3 normal;
+        float2 spot;
+    };
 
     constexpr sampler crisp(filter::nearest, address::clamp_to_edge);
     // Past the pond's edges the floor carries on as its own mirror image.
     constexpr sampler floorSampler(filter::nearest, address::mirrored_repeat);
     constexpr sampler smooth(filter::linear, address::clamp_to_edge);
+    constexpr sampler skySampler(filter::linear, address::repeat);
 
-    // The sun stands behind the viewer, a little to the left (`WaterStage.sunDirection`). Bent into the water,
-    // its light slants this far per unit of depth, so the light and shade the waves cast, and the shadows
-    // of what floats and swims, land beside them: away from the viewer, as far as looking through the water
-    // at an angle brings them back.
-    constant float2 towardsSun = float2(-0.096, 0.336);
-    // How much of the light the water swallows per design unit it travels through it: red goes first,
+    // How much of the light the water swallows per design unit it travels through: red goes first,
     // so deep water turns blue rather than green.
     constant float3 absorption = float3(0.014, 0.009, 0.007);
+    constant float3 sunColor = float3(1, 0.96, 0.88);
 
-    // The layers hold premultiplied sRGB; shading works in linear light.
-    half4 layerColor(texture2d<half> layer, float2 spot) {
-        half4 color = layer.sample(crisp, spot);
-        if (color.a < 0.004h) return half4(0);
-        return half4(pow(color.rgb / color.a, 2.2h), color.a);
+    // The water surface rises and falls with the waves; everything else lies still.
+    vertex Fragment stageVertex(uint id [[vertex_id]], const device StageVertex *vertices [[buffer(0)]],
+                                constant Stage &stage [[buffer(1)]], constant float &lift [[buffer(2)]],
+                                texture2d<float> waves [[texture(0)]]) {
+        StageVertex v = vertices[id];
+        float3 position = v.position;
+        position.y += lift * waves.sample(smooth, v.spot, level(0)).w * stage.pond.z;
+        Fragment out;
+        out.position = stage.viewProjection * float4(position, 1);
+        out.world = position;
+        out.normal = v.normal;
+        out.spot = v.spot;
+        return out;
     }
 
-    half3 floorColor(texture2d<half> floorTexture, float2 spot) {
-        return pow(floorTexture.sample(floorSampler, spot).rgb, 2.2h);
+    // The layers hold premultiplied sRGB; shading works in linear light.
+    float4 layerColor(texture2d<float> layer, float2 spot) {
+        float4 color = layer.sample(crisp, spot);
+        if (color.a < 0.004) return float4(0);
+        return float4(pow(color.rgb / color.a, 2.2), color.a);
     }
 
     // How much light is left after going down to `depth` and back up to the eye.
-    float3 clearness(float depth, float3 view) {
-        return exp(-absorption * depth * (1 + 1 / max(abs(view.y), 0.25)));
+    float3 clearness(float depth, float3 toEye) {
+        return exp(-absorption * depth * (1 + 1 / max(toEye.y, 0.25)));
     }
 
-    // What the waves and the things above do to the light reaching `spot` at `depth`:
-    // x how much brighter the waves focus it, y how much it's left after spreading and shadows.
-    float2 sunlight(realitykit::texture::textures textures, float2 spot, float depth, float swimmerDepth, float2 size) {
-        float2 sunward = towardsSun * depth / size;
-        float curvature = float(textures.custom().sample(smooth, spot + sunward).z);
+    // What the waves and the things above do to the sunlight reaching `spot` at `depth`:
+    // x how much brighter the waves focus it, y how much is left after spreading and shadows.
+    // The light got here through the surface towards the sun, so that's where its waves and shadows are.
+    float2 sunlight(constant Stage &stage, texture2d<float> waves, texture2d<float> floating, texture2d<float> swimming,
+                    float2 spot, float depth) {
+        float2 size = stage.pond.xy;
+        float curvature = waves.sample(smooth, spot + stage.slant.xy * depth / size).z;
         // A crest is a lens: light only moves around, so the floor brightens where the waves bend it together
         // and darkens where they spread it (how much light lands = area before / area after).
         float gathered = 1 / max(1 + 1.6 * depth * curvature, 0.2);
-        float floating = textures.emissive_color().sample(crisp, spot + sunward).a > 0.8h ? 1 : 0;
-        float swimming = depth > swimmerDepth
-            ? (textures.ambient_occlusion().sample(crisp, spot + towardsSun * (depth - swimmerDepth) / size).a > 0.5h ? 1 : 0) : 0;
-        float shade = 1 - 0.6 * max(floating, swimming);
-        return float2(saturate(gathered - 1) * shade, (1 - saturate(1 - gathered) * 0.45) * shade);
+        float shade = floating.sample(crisp, spot + stage.slant.xy * depth / size).a > 0.8 ? 1 : 0;
+        float above = depth - stage.pond.w;
+        if (above > 0 && swimming.sample(crisp, spot + stage.slant.xy * above / size).a > 0.5) shade = 1;
+        float lit = 1 - 0.6 * shade;
+        return float2(saturate(gathered - 1) * lit, (1 - saturate(1 - gathered) * 0.45) * lit);
     }
 
-    [[visible]] void pondFloor(realitykit::surface_parameters params) {
-        float4 pond = params.uniforms().custom_parameter();
-        auto textures = params.textures();
-        float2 spot = params.geometry().uv0();
-        // The basin lies at its apparent depth (3/4 of the real one, as water makes it look).
-        float depth = max(-params.geometry().world_position().y / pond.z, 0.0) / 0.75;
-        // Looking down through a tilted surface shifts what lies below, the more the deeper it lies.
-        float4 wave = float4(textures.custom().sample(smooth, spot));
-        float2 seen = spot - wave.xy * depth * 0.25 / pond.xy;
-        float2 light = sunlight(textures, seen, depth, pond.w, pond.xy);
-        half3 clear = half3(clearness(depth, params.geometry().view_direction()));
-        half3 water = half3(params.material_constants().base_color_tint());
-        params.surface().set_base_color(floorColor(textures.base_color(), seen) * half(light.y) * clear);
-        params.surface().set_emissive_color(water * (1 - clear) * 0.25h + half3(1, 0.97, 0.88) * half(light.x * 0.6) * clear);
-        params.surface().set_roughness(1);
-        params.surface().set_metallic(0);
-        params.surface().set_specular(0.1);
+    // Looking down through a tilted surface shifts what lies below, the more the deeper it lies.
+    float2 bent(texture2d<float> waves, float2 spot, float depth, float2 size) {
+        return spot - waves.sample(smooth, spot).xy * depth * 0.25 / size;
     }
 
-    [[visible]] void pondSwimmers(realitykit::surface_parameters params) {
-        float4 pond = params.uniforms().custom_parameter();
-        auto textures = params.textures();
-        float2 spot = params.geometry().uv0();
-        float4 wave = float4(textures.custom().sample(smooth, spot));
-        float2 seen = spot - wave.xy * pond.w * 0.25 / pond.xy;
-        half4 swimmer = layerColor(textures.ambient_occlusion(), seen);
-        float2 light = sunlight(textures, seen, pond.w, pond.w + 1, pond.xy);
-        half3 clear = half3(clearness(pond.w, params.geometry().view_direction()));
-        half3 water = half3(params.material_constants().base_color_tint());
-        half3 color = swimmer.rgb * half(light.y) * clear + water * (1 - clear) * 0.25h + half3(1, 0.97, 0.88) * half(light.x * 0.6) * clear;
-        params.surface().set_base_color(color);
-        params.surface().set_emissive_color(color);
-        params.surface().set_opacity(swimmer.a);
+    fragment float4 floorFragment(Fragment in [[stage_in]], constant Stage &stage [[buffer(1)]],
+                                  texture2d<float> floorTexture [[texture(0)]], texture2d<float> swimming [[texture(1)]],
+                                  texture2d<float> floating [[texture(2)]], texture2d<float> waves [[texture(3)]]) {
+        float depth = max(-in.world.y / stage.pond.z, 0.0) / stage.eye.w;
+        float2 seen = bent(waves, in.spot, depth, stage.pond.xy);
+        float2 light = sunlight(stage, waves, floating, swimming, seen, depth);
+        float3 clear = clearness(depth, normalize(stage.eye.xyz - in.world));
+        float3 ground = pow(floorTexture.sample(floorSampler, seen).rgb, 2.2);
+        float lit = 0.45 + 0.75 * saturate(dot(normalize(in.normal), stage.sun.xyz)) * light.y;
+        float3 color = ground * lit * clear + stage.water.rgb * (1 - clear) * 0.3 + sunColor * light.x * 0.6 * clear;
+        return float4(color, 1);
     }
 
-    // The surface rises and falls with the simulated waves and tilts with them, so it catches the sky and the sun.
-    [[visible]] void pondWaves(realitykit::geometry_parameters params) {
-        float4 pond = params.uniforms().custom_parameter();
-        float4 wave = float4(params.textures().custom().sample(smooth, params.geometry().uv0()));
-        params.geometry().set_model_position_offset(float3(0, wave.w * pond.z, 0));
-        params.geometry().set_normal(normalize(float3(-wave.x * 6, 1, -wave.y * 6)));
+    fragment float4 swimmersFragment(Fragment in [[stage_in]], constant Stage &stage [[buffer(1)]],
+                                     texture2d<float> swimming [[texture(1)]], texture2d<float> floating [[texture(2)]],
+                                     texture2d<float> waves [[texture(3)]]) {
+        float depth = stage.pond.w;
+        float2 seen = bent(waves, in.spot, depth, stage.pond.xy);
+        float4 swimmer = layerColor(swimming, seen);
+        if (swimmer.a < 0.004) discard_fragment();
+        float2 light = sunlight(stage, waves, floating, swimming, seen, depth);
+        float3 clear = clearness(depth, normalize(stage.eye.xyz - in.world));
+        float3 color = swimmer.rgb * (0.55 + 0.5 * light.y) * clear + stage.water.rgb * (1 - clear) * 0.3 + sunColor * light.x * 0.6 * clear;
+        return float4(color, swimmer.a);
     }
 
-    [[visible]] void pondSurface(realitykit::surface_parameters params) {
-        auto textures = params.textures();
-        float2 spot = params.geometry().uv0();
-        half4 floating = layerColor(textures.emissive_color(), spot);
-        half3 water = half3(params.material_constants().base_color_tint());
-        // What floats keeps most of its own colour and takes a little of the sun's shading.
-        params.surface().set_base_color(mix(water * 0.15h, floating.rgb * 0.35h, floating.a));
-        params.surface().set_emissive_color(floating.rgb * floating.a * 1.05h);
-        params.surface().set_roughness(mix(0.025h, 0.85h, floating.a));
-        params.surface().set_metallic(0);
-        // Water reflects 2 % head-on (specular 0.25 in RealityKit's terms).
-        params.surface().set_specular(mix(0.4h, 0.2h, floating.a));
-        params.surface().set_opacity(mix(0.12h, 1.0h, floating.a));
+    // The sky the water reflects, stored as a panorama.
+    float3 skyColor(texture2d<float> sky, float3 direction) {
+        float2 spot = float2(atan2(direction.x, -direction.z) / (2 * M_PI_F) + 0.5, acos(clamp(direction.y, -1.0, 1.0)) / M_PI_F);
+        return sky.sample(skySampler, spot).rgb;
+    }
+
+    // The surface reflects the sky as much as Fresnel says (2 % head-on, more where the waves tilt it),
+    // glints where it mirrors the sun, and carries what floats. Its output is premultiplied: what it doesn't
+    // reflect lets the water below show through.
+    fragment float4 surfaceFragment(Fragment in [[stage_in]], constant Stage &stage [[buffer(1)]],
+                                    texture2d<float> floating [[texture(2)]], texture2d<float> waves [[texture(3)]],
+                                    texture2d<float> sky [[texture(4)]]) {
+        float4 wave = waves.sample(smooth, in.spot);
+        float3 normal = normalize(float3(-wave.x * stage.water.w, 1, -wave.y * stage.water.w));
+        float3 toEye = normalize(stage.eye.xyz - in.world);
+        float fresnel = 0.02 + 0.98 * pow(1 - saturate(dot(normal, toEye)), 5);
+        float3 mirrored = reflect(-toEye, normal);
+        float glint = pow(saturate(dot(mirrored, stage.sun.xyz)), 1500) * 30;
+        float3 water = skyColor(sky, mirrored) * fresnel + sunColor * glint;
+        float4 thing = layerColor(floating, in.spot);
+        float3 thingLit = thing.rgb * (0.8 + 0.3 * saturate(dot(normal, stage.sun.xyz)));
+        return float4(water * (1 - thing.a) + thingLit * thing.a, saturate(fresnel + glint) * (1 - thing.a) + thing.a);
     }
     """
 }

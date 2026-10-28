@@ -108,14 +108,12 @@ if SceneRenderer.isAvailable {
     let frame = SceneRenderer(scene: scene)!.snapshot(scene)
     check(frame?.width == 1440 && frame?.height == 900, "a 16:10 pond renders at 1440×900")
 
-    MainActor.assumeIsolated {
-        let pond = SceneKind.koiPond.make(aspectRatio: WaterStage.pondAspect(screenAspect: 1.6), settings: KeshikiSettings())
-        let stage = WaterStage(scene: pond, screenAspect: 1.6)
-        let still = stage?.snapshot(width: 640, height: 400)
-        check(still?.width == 640 && still?.height == 400, "the pond renders in 3D at the display's size")
-        let middle = stage?.pondSpot(forViewSpot: Point(x: 0.5, y: 0.5)), back = middle.flatMap { stage?.viewSpot(forPondSpot: $0) }
-        check(near(back, Point(x: 0.5, y: 0.5)), "a click on the screen finds its spot in the pond and back")
-    }
+    let pond = SceneKind.koiPond.make(aspectRatio: WaterStage.pondAspect(screenAspect: 1.6), settings: KeshikiSettings())
+    let stage = WaterStage(scene: pond, screenAspect: 1.6)
+    let still = stage?.snapshot(width: 640, height: 400)
+    check(still?.width == 640 && still?.height == 400, "the pond renders in 3D at the display's size")
+    let middle = stage?.pondSpot(forViewSpot: Point(x: 0.5, y: 0.5)), back = middle.flatMap { stage?.viewSpot(forPondSpot: $0) }
+    check(near(back, Point(x: 0.5, y: 0.5)), "a click on the screen finds its spot in the pond and back")
 } else {
     print("– no Metal device, GPU checks skipped")
 }

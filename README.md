@@ -18,7 +18,7 @@ you click the water and learn when you usually feed them. More scenes will follo
    xattr -dr com.apple.quarantine /Applications/Keshiki.app
    ```
 
-Requires macOS 15 or later on Apple Silicon. Keshiki lives in the menu bar
+Requires macOS 14 or later on Apple Silicon. Keshiki lives in the menu bar
 (鯉); add it to *Login Items* to start it automatically. Coming from
 *Wallpapers* 1.x? Keshiki picks up your settings and what the koi learned on
 its first launch.
@@ -37,11 +37,9 @@ its first launch.
   desktop is covered, it rests: the last frame stays, and nothing is simulated
   or drawn there. It can rest on battery too.
 - **In 3D:** the pond is a real basin seen from a slightly tilted camera,
-  drawn with RealityKit at the display's full resolution. The koi, the plants
-  and the visitors stay pixel art (1440 px wide), laid in at their depth.
-  Measured on an Apple Silicon Mac at 30 fps for a 3024×1964 Retina display:
-  about 6–12 % of one CPU core and 25–38 % GPU device utilisation (the 2D
-  version before it: about 4–5 % and 9–10 % measured the same way).
+  drawn with Metal. The koi, the plants and the visitors stay pixel art
+  (1440 px wide), laid in at their depth. Measured on an Apple Silicon Mac at
+  30 fps: about 4 % of one CPU core per playing display.
 
 ## Koi Pond
 
@@ -86,12 +84,9 @@ The version comes from `CFBundleShortVersionString` in `App/Info.plist`.
     palette texture). A scene's `WaterSurface` says where the water can't move,
     how deep it is and where it was disturbed; the renderer simulates it as a
     height field in a compute shader.
-  - `WaterStage` lays it all out in 3D with RealityKit: the painted backdrop
-    as the floor's basin, the swimming layer under the surface, and the
-    surface moved by the waves, carrying the floating layer. Its shaders
-    (`StageShaders`) are compiled at runtime with RealityKit's header inlined
-    by the Makefile, so building needs no Xcode. RealityKit renders each frame
-    into the display's texture when the app's 30 fps clock asks for it.
+  - `WaterStage` lays it all out in 3D: the painted backdrop as the floor's
+    basin, the swimming layer under the surface, and the surface moved by the
+    waves, carrying the floating layer and reflecting the sky (`StageShaders`).
   - `PixelBuffer` paints the static layers once on the CPU; their CPU copies
     are dropped after upload.
   - `Atmosphere` (time of day, rain, fireflies) and `KeshikiSettings`.

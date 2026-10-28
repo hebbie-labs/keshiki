@@ -11,7 +11,6 @@ final class SceneRenderer {
         let device: MTLDevice
         let queue: MTLCommandQueue
         let shapes: MTLRenderPipelineState
-        let backdrop: MTLRenderPipelineState
         let overlay: MTLRenderPipelineState
         let flatten: MTLRenderPipelineState
         /// Covers for the flat snapshot, and for the stage's display texture (sRGB).
@@ -40,7 +39,6 @@ final class SceneRenderer {
                 library.makeFunction(name: name).flatMap { try? device.makeComputePipelineState(function: $0) }
             }
             guard let shapes = pipeline("shapeVertex", "shapeFragment", blending: true),
-                  let backdrop = pipeline("fullScreenVertex", "backdropFragment", blending: false),
                   let overlay = pipeline("fullScreenVertex", "overlayFragment", blending: true),
                   let flatten = pipeline("fullScreenVertex", "flattenFragment", blending: false),
                   let cover = pipeline("fullScreenVertex", "coverFragment", blending: true),
@@ -49,7 +47,6 @@ final class SceneRenderer {
             self.device = device
             self.queue = queue
             self.shapes = shapes
-            self.backdrop = backdrop
             self.overlay = overlay
             self.flatten = flatten
             self.cover = cover
@@ -88,8 +85,6 @@ final class SceneRenderer {
     private var overlay: (indices: MTLTexture, palette: [SIMD4<Float>])?
     private var shapeBuffers: [MTLBuffer?] = [nil, nil]
     private var bufferIndex = 0
-    /// Goes up whenever the scene painted a new backdrop, so `WaterStage` knows to copy it.
-    private(set) var backdropVersion = 0
 
     static var isAvailable: Bool { shared != nil }
     static var device: MTLDevice? { shared?.device }
@@ -151,13 +146,8 @@ final class SceneRenderer {
         }
     }
 
-    func encodeBackdropCopy(into target: MTLTexture, commands: MTLCommandBuffer) {
-        guard let backdropTexture, let encoder = commands.makeRenderCommandEncoder(descriptor: Self.pass(into: target, clear: false)) else { return }
-        encoder.setRenderPipelineState(shared.backdrop)
-        encoder.setFragmentTexture(backdropTexture, index: 0)
-        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
-        encoder.endEncoding()
-    }
+    /// The scene's painted backdrop, e.g. the floor under the water.
+    var backdrop: MTLTexture? { backdropTexture }
 
     /// Moves the waves on by one frame, starting with the scene's new drops, and writes their slopes,
     /// curvature and height into `waves` (`waterGrid` in size).
@@ -292,10 +282,7 @@ final class SceneRenderer {
     }
 
     private func uploadNewLayers(of scene: LivingScene) {
-        if let backdrop = scene.takeNewBackdrop() {
-            backdropTexture = upload(backdrop)
-            backdropVersion += 1
-        }
+        if let backdrop = scene.takeNewBackdrop() { backdropTexture = upload(backdrop) }
         if let image = scene.takeNewOverlay() { overlay = uploadIndexed(image) }
     }
 

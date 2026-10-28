@@ -50,10 +50,6 @@ enum Shaders {
         return float4(corner * 2 - 1, 0, 1);
     }
 
-    fragment float4 backdropFragment(float4 position [[position]], texture2d<float> floorTexture [[texture(0)]]) {
-        return floorTexture.read(uint2(position.xy));
-    }
-
     fragment float4 coverFragment(float4 position [[position]], constant float4 &color [[buffer(0)]]) {
         return color;
     }

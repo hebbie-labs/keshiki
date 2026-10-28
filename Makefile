@@ -3,20 +3,10 @@ APP      := build/$(APP_NAME).app
 SAVER    := build/$(APP_NAME).saver
 VERSION  := $(shell /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' App/Info.plist)
 DMG      := build/$(APP_NAME)-$(VERSION).dmg
-# RealityKit's shader headers, inlined so the water shaders compile at runtime without a Metal toolchain.
-RKHEADER := build/RealityKitHeader.swift
-RKSDK    := $(shell xcrun --sdk macosx --show-sdk-path)/System/Library/Frameworks/RealityKit.framework/Headers
-ENGINE   := $(wildcard Core/*.swift Scenes/*.swift Scenes/*/*.swift) $(RKHEADER)
-SWIFTC   := swiftc -O -enforce-exclusivity=unchecked -swift-version 5 -target arm64-apple-macos15.0
+ENGINE   := $(wildcard Core/*.swift Scenes/*.swift Scenes/*/*.swift)
+SWIFTC   := swiftc -O -enforce-exclusivity=unchecked -swift-version 5 -target arm64-apple-macos14.0
 
 .PHONY: app saver dmg run test clean
-
-$(RKHEADER):
-	mkdir -p build
-	{ echo 'enum RealityKitHeader {'; echo '    static let source = ##"""'; echo '#define __REALITYKIT_INDIRECT'; \
-	  for name in Config Types MaterialParameters Textures GeometryModifier SurfaceShader; do \
-	    grep -v '#include <RealityKit/' $(RKSDK)/RealityKit$$name.h; done; \
-	  echo '"""##'; echo '}'; } > $@
 
 app: saver
 	rm -rf $(APP)
@@ -28,7 +18,7 @@ app: saver
 	codesign --force --deep --sign - $(APP)
 
 # The same scenes as a system screensaver (a loadable bundle).
-saver: $(RKHEADER)
+saver:
 	rm -rf $(SAVER)
 	mkdir -p $(SAVER)/Contents/MacOS $(SAVER)/Contents/Resources
 	$(SWIFTC) -module-name KeshikiSaver -emit-library -Xlinker -bundle -Xlinker -undefined -Xlinker dynamic_lookup \
@@ -49,7 +39,8 @@ run: app
 	-pkill -x $(APP_NAME)
 	open $(APP)
 
-test: $(RKHEADER)
+test:
+	mkdir -p build
 	$(SWIFTC) $(ENGINE) $(wildcard Tests/*.swift) -o build/engine-checks
 	build/engine-checks
 
