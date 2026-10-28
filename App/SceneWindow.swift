@@ -10,7 +10,7 @@ final class SceneWindow: NSWindow {
         guard let stage = WaterStage(scene: scene, screenAspect: screen.frame.width / screen.frame.height) else { return nil }
         self.scene = scene
         self.stage = stage
-        sceneView = SceneView(frame: NSRect(origin: .zero, size: screen.frame.size), backingScale: screen.backingScaleFactor)
+        sceneView = SceneView(frame: NSRect(origin: .zero, size: screen.frame.size), pixelWidth: scene.pixelWidth)
         super.init(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
         isReleasedWhenClosed = false
         contentView = sceneView

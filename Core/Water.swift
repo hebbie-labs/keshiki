@@ -22,8 +22,6 @@ final class WaterSurface {
 
     /// Most disturbances one frame carries to the GPU.
     static let maxDropsPerFrame = 64
-    /// The colour of the light on the floor and on the waves.
-    static let light = Color(0xeafff5)
 
     init(obstacles: [Disc], depth: @escaping (Point) -> Double) {
         self.obstacles = obstacles

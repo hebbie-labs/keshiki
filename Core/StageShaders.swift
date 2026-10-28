@@ -15,11 +15,14 @@ enum StageShaders {
     constexpr sampler floorSampler(filter::nearest, address::mirrored_repeat);
     constexpr sampler smooth(filter::linear, address::clamp_to_edge);
 
-    // The sun stands to the top left. Bent into the water, its light slants this far sideways per unit of depth,
-    // so the light and shade the waves cast, and the shadows of what floats and swims, land beside them.
-    constant float2 towardsSun = float2(-0.16, -0.21);
-    // How much of the light the water swallows per design unit it travels through it.
-    constant float absorption = 0.009;
+    // The sun stands behind the viewer, a little to the left (`WaterStage.sunDirection`). Bent into the water,
+    // its light slants this far per unit of depth, so the light and shade the waves cast, and the shadows
+    // of what floats and swims, land beside them: away from the viewer, as far as looking through the water
+    // at an angle brings them back.
+    constant float2 towardsSun = float2(-0.096, 0.336);
+    // How much of the light the water swallows per design unit it travels through it: red goes first,
+    // so deep water turns blue rather than green.
+    constant float3 absorption = float3(0.014, 0.009, 0.007);
 
     // The layers hold premultiplied sRGB; shading works in linear light.
     half4 layerColor(texture2d<half> layer, float2 spot) {
@@ -33,7 +36,7 @@ enum StageShaders {
     }
 
     // How much light is left after going down to `depth` and back up to the eye.
-    float clearness(float depth, float3 view) {
+    float3 clearness(float depth, float3 view) {
         return exp(-absorption * depth * (1 + 1 / max(abs(view.y), 0.25)));
     }
 
@@ -56,15 +59,16 @@ enum StageShaders {
         float4 pond = params.uniforms().custom_parameter();
         auto textures = params.textures();
         float2 spot = params.geometry().uv0();
-        float depth = max(-params.geometry().world_position().y / pond.z, 0.0);
+        // The basin lies at its apparent depth (3/4 of the real one, as water makes it look).
+        float depth = max(-params.geometry().world_position().y / pond.z, 0.0) / 0.75;
         // Looking down through a tilted surface shifts what lies below, the more the deeper it lies.
         float4 wave = float4(textures.custom().sample(smooth, spot));
         float2 seen = spot - wave.xy * depth * 0.25 / pond.xy;
         float2 light = sunlight(textures, seen, depth, pond.w, pond.xy);
-        float clear = clearness(depth, params.geometry().view_direction());
+        half3 clear = half3(clearness(depth, params.geometry().view_direction()));
         half3 water = half3(params.material_constants().base_color_tint());
-        params.surface().set_base_color(floorColor(textures.base_color(), seen) * half(light.y * clear));
-        params.surface().set_emissive_color(water * half(1 - clear) * 0.25h + half3(1, 0.97, 0.88) * half(light.x * clear * 0.6));
+        params.surface().set_base_color(floorColor(textures.base_color(), seen) * half(light.y) * clear);
+        params.surface().set_emissive_color(water * (1 - clear) * 0.25h + half3(1, 0.97, 0.88) * half(light.x * 0.6) * clear);
         params.surface().set_roughness(1);
         params.surface().set_metallic(0);
         params.surface().set_specular(0.1);
@@ -78,9 +82,9 @@ enum StageShaders {
         float2 seen = spot - wave.xy * pond.w * 0.25 / pond.xy;
         half4 swimmer = layerColor(textures.ambient_occlusion(), seen);
         float2 light = sunlight(textures, seen, pond.w, pond.w + 1, pond.xy);
-        float clear = clearness(pond.w, params.geometry().view_direction());
+        half3 clear = half3(clearness(pond.w, params.geometry().view_direction()));
         half3 water = half3(params.material_constants().base_color_tint());
-        half3 color = swimmer.rgb * half(light.y * clear) + water * half(1 - clear) * 0.25h + half3(1, 0.97, 0.88) * half(light.x * clear * 0.6);
+        half3 color = swimmer.rgb * half(light.y) * clear + water * (1 - clear) * 0.25h + half3(1, 0.97, 0.88) * half(light.x * 0.6) * clear;
         params.surface().set_base_color(color);
         params.surface().set_emissive_color(color);
         params.surface().set_opacity(swimmer.a);
@@ -91,7 +95,7 @@ enum StageShaders {
         float4 pond = params.uniforms().custom_parameter();
         float4 wave = float4(params.textures().custom().sample(smooth, params.geometry().uv0()));
         params.geometry().set_model_position_offset(float3(0, wave.w * pond.z, 0));
-        params.geometry().set_normal(normalize(float3(-wave.x * 2.5, 1, -wave.y * 2.5)));
+        params.geometry().set_normal(normalize(float3(-wave.x * 6, 1, -wave.y * 6)));
     }
 
     [[visible]] void pondSurface(realitykit::surface_parameters params) {
@@ -105,7 +109,7 @@ enum StageShaders {
         params.surface().set_roughness(mix(0.025h, 0.85h, floating.a));
         params.surface().set_metallic(0);
         // Water reflects 2 % head-on (specular 0.25 in RealityKit's terms).
-        params.surface().set_specular(mix(0.25h, 0.2h, floating.a));
+        params.surface().set_specular(mix(0.4h, 0.2h, floating.a));
         params.surface().set_opacity(mix(0.12h, 1.0h, floating.a));
     }
     """

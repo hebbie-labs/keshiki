@@ -3,7 +3,7 @@ import Foundation
 /// Paints the bare floor once: silt, pebbles and plants. The water over it, and the light and shadows
 /// in it, are drawn live at the floor's depth.
 enum PondFloor {
-    private static let plantClusters = 42
+    private static let plantClusters = 24
 
     /// `scale` is device pixels per design unit; per-pixel effects are computed at full device resolution.
     static func paint(size: SceneSize, scale: Double, waterName: String) -> PixelBuffer {

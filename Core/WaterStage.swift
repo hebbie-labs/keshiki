@@ -64,11 +64,16 @@ final class WaterStage {
     nonisolated private static let tilt: Float = 25 * .pi / 180
     nonisolated private static let fieldOfView: Float = 32
     nonisolated private static let cameraHeight: Float = 10
+    /// Seen through water, everything below looks this much shallower than it is (1 / 1.33), so the floor and
+    /// the swimmers are placed at that depth; the shaders work with the real one.
+    private static let apparentDepth: Float = 0.75
     /// How deep the swimmers swim, in design units.
     private static let swimmerDepth: Float = 5
     /// How far the floor and the water reach past the pond on every side, as a share of its size.
     private static let margin: Float = 0.12
-    private static let sunDirection = normalize(SIMD3<Float>(-0.38, 1.8, -0.5))
+    /// The sun stands a little behind and to the left of the viewer, 26° from straight up: then the light a wave
+    /// casts onto the floor lands where the wave is seen, while shadows still fall away the deeper the floor.
+    private static let sunDirection = normalize(SIMD3<Float>(-0.12, 0.9, 0.42))
 
     nonisolated static let pixelFormat = MTLPixelFormat.bgra8Unorm_srgb
 
@@ -98,6 +103,7 @@ final class WaterStage {
         layer.framebufferOnly = false
         layer.maximumDrawableCount = 2
         layer.drawableSize = CGSize(width: width, height: height)
+        layer.magnificationFilter = .nearest
         layer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
         layer.isOpaque = true
     }
@@ -142,9 +148,9 @@ final class WaterStage {
                 return material
             }
             let floor = ModelEntity(mesh: try Self.grid(pond, columns: 160, rows: 110) { spot in
-                -Float(surface.depth(Point(x: spot.x * Double(size.x), y: spot.y * Double(size.y)))) * unit
+                -Float(surface.depth(Point(x: spot.x * Double(size.x), y: spot.y * Double(size.y)))) * unit * Self.apparentDepth
             }, materials: [try material("pondFloor")])
-            let swimmers = ModelEntity(mesh: try Self.grid(pond, columns: 2, rows: 2) { _ in -Self.swimmerDepth * unit },
+            let swimmers = ModelEntity(mesh: try Self.grid(pond, columns: 2, rows: 2) { _ in -Self.swimmerDepth * unit * Self.apparentDepth },
                                        materials: [try material("pondSwimmers", lit: false, transparent: true)])
             let water = ModelEntity(mesh: try Self.grid(pond, columns: 200, rows: 140) { _ in 0 },
                                     materials: [try material("pondSurface", waves: "pondWaves", transparent: true)])
@@ -278,7 +284,7 @@ final class WaterStage {
     private static func paintSky() -> PixelBuffer {
         let width = 256, height = 128
         let sky = PixelBuffer(width: width, height: height)
-        let zenith = Color(0x4f8fd0), horizon = Color(0xd8ecf0), trees = Color(0x2d4a30), ground = Color(0x1f3322)
+        let zenith = Color(0x4f8fd0), horizon = Color(0xd8ecf0), trees = Color(0x3a4436), ground = Color(0x4a4438)
         for y in 0..<height {
             let elevation = 90 - Double(y) / Double(height) * 180
             for x in 0..<width {

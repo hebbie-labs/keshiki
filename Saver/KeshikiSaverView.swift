@@ -30,8 +30,7 @@ final class KeshikiSaverView: ScreenSaverView {
         super.startAnimation()
         let aspect = bounds.width / max(bounds.height, 1)
         let scene = SceneKind.koiPond.make(aspectRatio: WaterStage.pondAspect(screenAspect: aspect), settings: KeshikiSettings())
-        let pixels = convertToBacking(bounds).size
-        WaterStage.configure(metalLayer, width: Int(pixels.width), height: Int(pixels.height))
+        WaterStage.configure(metalLayer, width: scene.pixelWidth, height: Int((Double(scene.pixelWidth) / aspect).rounded()))
         stage = WaterStage(scene: scene, screenAspect: aspect)
     }
 

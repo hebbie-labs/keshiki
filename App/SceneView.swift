@@ -1,6 +1,7 @@
 import AppKit
 
-/// Shows a scene's stage through a Metal layer at the display's full resolution.
+/// Shows a scene's stage through a Metal layer. It's drawn as wide as the scene's pixel art, which keeps the
+/// GPU cheap, and Core Animation scales it up to the display with crisp, nearest-neighbour pixels.
 final class SceneView: NSView {
     let metalLayer = CAMetalLayer()
     private let caption = CATextLayer()
@@ -9,9 +10,9 @@ final class SceneView: NSView {
     private static let captionFadeOut: TimeInterval = 9
     private static let captionLift: CGFloat = 60
 
-    init(frame: NSRect, backingScale: CGFloat) {
+    init(frame: NSRect, pixelWidth: Int) {
         super.init(frame: frame)
-        WaterStage.configure(metalLayer, width: Int(frame.width * backingScale), height: Int(frame.height * backingScale))
+        WaterStage.configure(metalLayer, width: pixelWidth, height: Int((Double(pixelWidth) * frame.height / frame.width).rounded()))
         layer = metalLayer
         wantsLayer = true
         setUpCaption()
