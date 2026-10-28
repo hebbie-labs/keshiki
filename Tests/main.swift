@@ -81,6 +81,9 @@ splashWorld.splash(at: Point(x: 400, y: 300), droplets: 10, power: 50)
 let thrown = splashWorld.droplets.count
 for _ in 0..<60 { splashWorld.update(dt: 1.0 / 30) }
 check(thrown == 10 && splashWorld.droplets.isEmpty, "a splash throws droplets that fall back into the water")
+let padCanvas = DrawList(width: 1440, height: 900, scale: 1.5)
+for _ in 0..<40 { LilyPad.scatter(in: SceneSize(width: 960, height: 600)).forEach { $0.draw(on: padCanvas) } }
+check(padCanvas.primitives.allSatisfy { $0.bounds.x < $0.bounds.z && $0.bounds.y < $0.bounds.w }, "lily pads of any shape draw clean rows, slit and all")
 let reeds = Reeds.make(size: SceneSize(width: 960, height: 600), scale: 1.5)
 check(!reeds.sprites.isEmpty && reeds.sprites.allSatisfy { $0.root.y < 600 * 0.8 && $0.x + $0.width <= reeds.sheet.width },
       "reeds stand along the far and side edges, never in front, each cut from the sheet")

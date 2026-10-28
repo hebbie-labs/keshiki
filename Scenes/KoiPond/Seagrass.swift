@@ -21,7 +21,15 @@ struct SeagrassTuft {
 extension PondWorld {
     private static let tufts = 13
     private static let bladesPerTuft = 7...11
-    private static let seagrass = [Color(0x2e6b34), Color(0x3d8440), Color(0x55a04a), Color(0x7dbe5a)]
+    /// From the root deep down, murky with water, to the tip up in the light. Half see-through, as the leaves are,
+    /// which also keeps the water from casting a second, flat shadow of them.
+    private static let seagrass = [Color(0x274a3a, alpha: 0.5), Color(0x356a44, alpha: 0.5), Color(0x4f8f4a, alpha: 0.5),
+                                   Color(0x74b456, alpha: 0.5), Color(0x9fd36a, alpha: 0.5)]
+    private static let shadow = Color(0x0b2e26, alpha: 0.22)
+    /// The sun's slant through the water: how far a shadow lands from what casts it, per unit of height.
+    private static let sunSlant = Point(x: -0.1, y: 0.34)
+    /// How high up a blade's tip reaches, compared to its length.
+    private static let rise = 0.6
 
     /// Where the floor is neither too shallow nor too deep for the light.
     static func plantSeagrass(in size: SceneSize) -> [SeagrassTuft] {
@@ -58,21 +66,34 @@ extension PondWorld {
         }
     }
 
-    /// Each blade curls with the current (sideways, stronger towards the tip) and leans away from the koi.
+    /// Each blade rises from the floor, curls with the current (sideways, stronger towards the tip) and leans away
+    /// from the koi. Its shadow on the floor drifts off it the higher the blade reaches: what tells it stands up.
     func drawSeagrass(on canvas: Canvas) {
+        for shadows in [true, false] {
+            for tuft in seagrass {
+                for blade in tuft.blades { drawBlade(blade, of: tuft, asShadow: shadows, on: canvas) }
+            }
+        }
+    }
+
+    private func drawBlade(_ blade: SeagrassTuft.Blade, of tuft: SeagrassTuft, asShadow: Bool, on canvas: Canvas) {
         let current = clock * 0.9
-        for tuft in seagrass {
-            for blade in tuft.blades {
-                var point = blade.root
-                // Steps of two design pixels with 2×2 squares: a solid ribbon, half the shapes of single steps.
-                let steps = Int(blade.length / 2)
-                for step in 0..<steps {
-                    let t = Double(step) / Double(steps)
-                    let heading = blade.lean + sin(current + blade.phase + t * 2.5) * 0.5 * t
-                    point = point.moved(by: 2, heading: heading)
-                    let tip = Point(x: point.x + tuft.bend.x * t * t, y: point.y + tuft.bend.y * t * t)
-                    canvas.fillRect(tip, width: 2, height: 2, Self.seagrass[min(Self.seagrass.count - 1, Int(t * Double(Self.seagrass.count)))])
-                }
+        var point = blade.root
+        // Steps of two design pixels with 2×2 squares: a solid ribbon, half the shapes of single steps.
+        let steps = Int(blade.length / 2)
+        for step in 0..<steps {
+            let t = Double(step) / Double(steps)
+            let heading = blade.lean + sin(current + blade.phase + t * 2.5) * 0.5 * t
+            point = point.moved(by: 2, heading: heading)
+            var spot = Point(x: point.x + tuft.bend.x * t * t, y: point.y + tuft.bend.y * t * t)
+            if asShadow {
+                // A soft shadow: every other step, a little bigger.
+                guard step.isMultiple(of: 2) else { continue }
+                let height = t * blade.length * Self.rise
+                spot = Point(x: spot.x + Self.sunSlant.x * height, y: spot.y + Self.sunSlant.y * height)
+                canvas.fillRect(spot, width: 3, height: 3, Self.shadow)
+            } else {
+                canvas.fillRect(spot, width: 2, height: 2, Self.seagrass[min(Self.seagrass.count - 1, Int(t * Double(Self.seagrass.count)))])
             }
         }
     }
