@@ -52,8 +52,9 @@ struct LilyPad {
 
     /// Sunlight catches the upper-left edge.
     private func drawRim(on canvas: Canvas, at top: Point) {
-        for step in 0..<Int(radius * 3) {
-            let angle = Double.pi * 0.9 + Double(step) / (radius * 3) * Double.pi * 0.9
+        // About one design pixel apart along the arc: no gaps, no doubled pixels.
+        for step in 0..<Int(radius * 2.4) {
+            let angle = Double.pi * 0.9 + Double(step) / (radius * 2.4) * Double.pi * 0.9
             canvas.plot(top.moved(by: radius - 1, heading: angle), Self.rim)
         }
     }
@@ -61,7 +62,7 @@ struct LilyPad {
     private func drawVeins(on canvas: Canvas, at top: Point, notchAngle: Double) {
         for vein in 0..<9 {
             let angle = notchAngle + 0.5 + Double(vein) * 0.66
-            for step in stride(from: 3.0, to: radius - 2, by: 1) { canvas.plot(top.moved(by: step, heading: angle), Self.vein) }
+            for step in stride(from: 3.0, to: radius - 2, by: 1.3) { canvas.plot(top.moved(by: step, heading: angle), Self.vein) }
         }
     }
 

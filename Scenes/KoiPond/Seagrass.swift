@@ -19,8 +19,8 @@ struct SeagrassTuft {
 }
 
 extension PondWorld {
-    private static let tufts = 16
-    private static let bladesPerTuft = 8...13
+    private static let tufts = 13
+    private static let bladesPerTuft = 7...11
     private static let seagrass = [Color(0x2e6b34), Color(0x3d8440), Color(0x55a04a), Color(0x7dbe5a)]
 
     /// Where the floor is neither too shallow nor too deep for the light.
@@ -64,11 +64,12 @@ extension PondWorld {
         for tuft in seagrass {
             for blade in tuft.blades {
                 var point = blade.root
-                let steps = Int(blade.length / 1.5)
+                // Steps of two design pixels with 2×2 squares: a solid ribbon, half the shapes of single steps.
+                let steps = Int(blade.length / 2)
                 for step in 0..<steps {
                     let t = Double(step) / Double(steps)
                     let heading = blade.lean + sin(current + blade.phase + t * 2.5) * 0.5 * t
-                    point = point.moved(by: 1.5, heading: heading)
+                    point = point.moved(by: 2, heading: heading)
                     let tip = Point(x: point.x + tuft.bend.x * t * t, y: point.y + tuft.bend.y * t * t)
                     canvas.fillRect(tip, width: 2, height: 2, Self.seagrass[min(Self.seagrass.count - 1, Int(t * Double(Self.seagrass.count)))])
                 }
