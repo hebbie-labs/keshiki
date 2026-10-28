@@ -30,7 +30,8 @@ final class KeshikiSaverView: ScreenSaverView {
     override func startAnimation() {
         super.startAnimation()
         let scene = SceneKind.koiPond.make(aspectRatio: bounds.width / max(bounds.height, 1), settings: KeshikiSettings())
-        SceneRenderer.configure(metalLayer, width: scene.pixelWidth, height: scene.pixelHeight)
+        let pixels = convertToBacking(bounds).size
+        SceneRenderer.configure(metalLayer, width: Int(pixels.width), height: Int(pixels.height))
         self.scene = scene
         renderer = SceneRenderer(scene: scene)
     }

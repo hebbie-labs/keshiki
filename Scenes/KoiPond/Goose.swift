@@ -56,7 +56,7 @@ final class Goose {
         paddleTimer += dt
         guard paddleTimer >= Self.paddleEverySeconds else { return }
         paddleTimer = 0
-        world.addRipple(at: position.moved(by: -14, heading: heading), radius: 3, life: 0.6)
+        world.addRipple(at: position.moved(by: -14, heading: heading), radius: 3, strength: 0.6)
     }
 
     private func drawBody(on canvas: Canvas, along: Point) {

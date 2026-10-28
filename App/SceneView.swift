@@ -1,7 +1,7 @@
 import AppKit
 
-/// Shows a scene through a Metal layer. The layer's drawable has the scene's own pixel size;
-/// Core Animation scales it up to the display with crisp, nearest-neighbour pixels.
+/// Shows a scene through a Metal layer at the display's full resolution: the renderer draws the water at that
+/// resolution and scales the scene's pixel art up to it with crisp, nearest-neighbour pixels.
 final class SceneView: NSView {
     let metalLayer = CAMetalLayer()
     private let caption = CATextLayer()
@@ -10,9 +10,9 @@ final class SceneView: NSView {
     private static let captionFadeOut: TimeInterval = 9
     private static let captionLift: CGFloat = 60
 
-    init(frame: NSRect, pixelWidth: Int, pixelHeight: Int) {
+    init(frame: NSRect, backingScale: CGFloat) {
         super.init(frame: frame)
-        SceneRenderer.configure(metalLayer, width: pixelWidth, height: pixelHeight)
+        SceneRenderer.configure(metalLayer, width: Int(frame.width * backingScale), height: Int(frame.height * backingScale))
         layer = metalLayer
         wantsLayer = true
         setUpCaption()

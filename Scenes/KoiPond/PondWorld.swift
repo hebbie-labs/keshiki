@@ -15,7 +15,7 @@ final class PondWorld {
     let frog: Frog
     private(set) var kois: [Koi] = []
     var food: [FoodPellet] = []
-    var ripples: [Ripple] = []
+    let water: WaterSurface
     private(set) var goose: Goose?
     private(set) var ball: Ball?
     private(set) var greetingSpot: Point?
@@ -27,6 +27,7 @@ final class PondWorld {
         self.size = size
         self.options = options
         pads = LilyPad.scatter(in: size)
+        water = WaterSurface(obstacles: pads.map { WaterSurface.Disc(center: $0.center, radius: $0.radius) })
         duckweed = PondWorld.scatterDuckweed(in: size)
         schools = [.himedaka, .tanago, .oikawa, .motsugo].map { FishSchool(species: $0, in: size) }
         frog = Frog(pad: pads[0])
@@ -45,7 +46,6 @@ final class PondWorld {
         if let goose, !goose.update(in: self, dt: dt) { self.goose = nil }
         ball?.update(in: self, dt: dt)
         if raining { addRaindrops() }
-        updateRipples(dt: dt)
     }
 
     /// What swims below, then what floats on top. The floor (and its light) is the backdrop; the scene adds the sky.
@@ -59,7 +59,6 @@ final class PondWorld {
         frog.draw(on: canvas, time: time)
         ball?.draw(on: canvas)
         goose?.draw(on: canvas, time: time)
-        drawRipples(on: canvas)
     }
 
     func touchWater(at point: Point) {
@@ -74,7 +73,7 @@ final class PondWorld {
         case .ball:
             let position = size.randomPoint(marginX: 120, marginY: 100)
             ball = Ball(at: position)
-            for ring in 0..<3 { addRipple(at: position, radius: 2 + Double(ring) * 4) }
+            addRipple(at: position, radius: 8, strength: 1.5)
         case .clear:
             goose?.leave()
             ball = nil

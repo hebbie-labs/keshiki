@@ -40,7 +40,7 @@ final class KoiPondScene: LivingScene {
     var pixelWidth: Int { Int((world.size.width * pixelScale).rounded()) }
     var pixelHeight: Int { Int((world.size.height * pixelScale).rounded()) }
 
-    var caustics: CausticsFrame? { Caustics.frame(at: time) }
+    var water: WaterSurface? { world.water }
 
     func advance(by dt: Double) {
         time += dt

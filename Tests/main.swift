@@ -75,7 +75,7 @@ final class DiscScene: LivingScene {
     var settings = KeshikiSettings()
     var systemDark = false
     let pixelWidth = 64, pixelHeight = 64, pixelScale = 1.5
-    var caustics: CausticsFrame? { nil }
+    var water: WaterSurface? { nil }
     private var backdrop: PixelBuffer? = PixelBuffer(width: 64, height: 64)
     func advance(by dt: Double) {}
     func takeNewBackdrop() -> PixelBuffer? { defer { backdrop = nil }; return backdrop }

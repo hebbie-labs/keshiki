@@ -36,17 +36,20 @@ its first launch.
   free. As soon as any app window lies on that display (focused or not), or the
   desktop is covered, it rests: the last frame stays, and nothing is simulated
   or drawn there. It can rest on battery too.
-- **Light on the machine:** drawn on the GPU with Metal at 1440 px wide and
-  scaled up with crisp pixels. Measured on an Apple Silicon Mac: about 2 % CPU
-  and 1 % GPU per playing display at 30 fps (4 % CPU for the whole app with one
-  display playing), and about 200 MB of memory, ~113 MB of which is the fixed
-  cost of using Metal at all.
+- **Light on the machine:** drawn on the GPU with Metal: the pixel art at
+  1440 px wide, scaled up with crisp pixels, and the water at the display's
+  full resolution. Measured on an Apple Silicon Mac (M-series, 30 fps, GPU time
+  per frame): about 2.5 % CPU and 3.3 % GPU for a 3024×1964 Retina display,
+  2.1 % GPU for a 1920×1200 one.
 
 ## Koi Pond
 
 - **Eight koi with a life of their own.** Each has a favourite: herding the
   tiny fish, grazing duckweed, lotus shade, the frog, the ball or the goose.
-- **A living pond.** Clear water with a wobbling net of sunlight on the floor,
+- **Real water.** Waves spread, overlap and bounce off the edges and the lily
+  pads, bend the view of the floor, focus sunlight into a moving net of light
+  and catch the sun. Clicks, food, rain, the frog and the goose all make waves.
+- **A living pond.** Clear water over a sunlit floor,
   shafts of light, water plants along the shallow edges, deep shadows under
   the lily pads, and schools of Japanese pond fish (hime-medaka, tanago
   bitterlings, oikawa and motsugo) that swim in bursts and glides.
@@ -74,16 +77,20 @@ The version comes from `CFBundleShortVersionString` in `App/Info.plist`.
   - `LivingScene` is what a scene must do; scenes draw into a `Canvas` in
     design units (960 wide) and render at `pixelScale` (1.5 → 1440 px).
   - `DrawList` records each frame as rectangles and discs; `SceneRenderer`
-    draws them on the GPU as instanced quads (`Shaders`), over the scene's
-    painted backdrop with the `Caustics` light net, with a static overlay in
-    between (stored as a palette texture). All displays share one GPU
-    submission per frame.
+    draws them on the GPU as instanced quads (`Shaders`) over the scene's
+    painted backdrop, in two layers below and above a static overlay (stored
+    as a palette texture). A scene's `WaterSurface` says where the water can't
+    move and where it was disturbed; the renderer simulates it as a height
+    field in a compute shader and puts the layers together at the display's
+    resolution, with the water bending, lighting and reflecting the layer
+    below. All displays share one GPU submission per frame.
   - `PixelBuffer` paints the static layers once on the CPU; their CPU copies
     are dropped after upload.
   - `Atmosphere` (time of day, rain, fireflies) and `KeshikiSettings`.
 - `Scenes/` — `SceneKind` lists every scene; each has its own folder.
   - `KoiPond/` — `KoiPondScene` owns a `PondWorld` (`Koi`, `FishSchool`,
-    `Frog`, `Goose`, `Ball`, `LilyPad`, duckweed, food, ripples), the painted
+    `Frog`, `Goose`, `Ball`, `LilyPad`, duckweed, food, and the ripples they
+    make in the water), the painted
     `PondFloor` (backdrop) and lily pads (overlay), the learning in `KoiMemory`
     and `KoiPondSettings`.
 - `App/` — the menu bar app (AppKit, no Xcode project needed).

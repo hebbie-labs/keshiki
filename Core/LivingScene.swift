@@ -15,8 +15,8 @@ protocol LivingScene: AnyObject {
     func takeNewBackdrop() -> PixelBuffer?
     /// Like the backdrop, but drawn above the shapes before `placeOverlay()` (transparent where empty).
     func takeNewOverlay() -> PixelBuffer?
-    /// The light net to lay over the backdrop this frame, if the scene has one.
-    var caustics: CausticsFrame? { get }
+    /// The water over the backdrop, if the scene has any.
+    var water: WaterSurface? { get }
     func draw(on canvas: Canvas, at date: Date)
     /// A click on the desktop; `spot` runs 0...1 across the display, origin top-left.
     func touch(at spot: Point, withOption: Bool)

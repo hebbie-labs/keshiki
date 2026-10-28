@@ -10,7 +10,7 @@ final class SceneWindow: NSWindow {
         guard let renderer = SceneRenderer(scene: scene) else { return nil }
         self.scene = scene
         self.renderer = renderer
-        sceneView = SceneView(frame: NSRect(origin: .zero, size: screen.frame.size), pixelWidth: scene.pixelWidth, pixelHeight: scene.pixelHeight)
+        sceneView = SceneView(frame: NSRect(origin: .zero, size: screen.frame.size), backingScale: screen.backingScaleFactor)
         super.init(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
         isReleasedWhenClosed = false
         contentView = sceneView
@@ -34,7 +34,8 @@ final class SceneWindow: NSWindow {
 
     /// A still of the current frame, e.g. for the lock screen.
     func snapshot() -> CGImage? {
-        renderer.snapshot(scene)
+        let size = sceneView.metalLayer.drawableSize
+        return renderer.snapshot(scene, width: Int(size.width), height: Int(size.height))
     }
 
     func sitBehindDesktopIcons() {

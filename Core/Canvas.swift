@@ -13,15 +13,6 @@ protocol Canvas: AnyObject {
 }
 
 extension Canvas {
-    /// A dotted ellipse, squashed vertically so ripples look like they lie on the water.
-    func ring(_ center: Point, radius: Double, _ color: Color, squash: Double = 0.7) {
-        let dots = max(10, Int(radius * 5))
-        for i in 0..<dots {
-            let angle = Double(i) / Double(dots) * 2 * .pi
-            plot(Point(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius * squash), color)
-        }
-    }
-
     func heart(_ position: Point, opacity: Double) {
         let shape = [".X.X.", "XXXXX", "XXXXX", ".XXX.", "..X.."]
         let color = Color(0xf05a6e, alpha: opacity)
