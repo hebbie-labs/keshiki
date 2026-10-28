@@ -11,7 +11,9 @@ extension PondWorld {
 
     func addRaindrops() {
         for _ in 0..<Self.raindropsPerFrame where chance(0.6) {
-            addRipple(at: size.randomPoint(marginX: 0), radius: 1.5, strength: 0.35)
+            let spot = size.randomPoint(marginX: 0)
+            addRipple(at: spot, radius: 1.5, strength: 0.35)
+            if chance(0.4) { splash(at: spot, droplets: 1, power: 22) }
         }
     }
 }
