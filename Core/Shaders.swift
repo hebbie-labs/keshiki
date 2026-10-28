@@ -78,11 +78,15 @@ enum Shaders {
         if (any(cell > last)) return;
         if (obstacles.read(cell).r > 0.5) { next.write(float4(0), cell); return; }
         float2 here = current.read(cell).rg;
-        float around = current.read(uint2(cell.x == 0 ? 0 : cell.x - 1, cell.y)).r
-                     + current.read(uint2(min(cell.x + 1, last.x), cell.y)).r
-                     + current.read(uint2(cell.x, cell.y == 0 ? 0 : cell.y - 1)).r
-                     + current.read(uint2(cell.x, min(cell.y + 1, last.y))).r;
-        float height = here.r + (here.r - here.g) * step.wave.y + step.wave.x * (around - 4 * here.r);
+        uint left = cell.x == 0 ? 0 : cell.x - 1, right = min(cell.x + 1, last.x);
+        uint up = cell.y == 0 ? 0 : cell.y - 1, down = min(cell.y + 1, last.y);
+        // Nine neighbours instead of four keep rings round instead of square.
+        float sides = current.read(uint2(left, cell.y)).r + current.read(uint2(right, cell.y)).r
+                    + current.read(uint2(cell.x, up)).r + current.read(uint2(cell.x, down)).r;
+        float corners = current.read(uint2(left, up)).r + current.read(uint2(right, up)).r
+                      + current.read(uint2(left, down)).r + current.read(uint2(right, down)).r;
+        float curvature = (4 * sides + corners - 20 * here.r) / 6;
+        float height = here.r + (here.r - here.g) * step.wave.y + step.wave.x * curvature;
         for (uint index = 0; index < uint(step.wave.z); index++) {
             float4 drop = drops[index];   // x, y, radius in cells, strength
             float2 offset = float2(cell) - drop.xy;
@@ -103,9 +107,10 @@ enum Shaders {
         float4(0.8, 15, 0.0055, 470), float4(2.2, 21, 0.0077, 400), float4(3.1, 17, 0.0060, 440), float4(4.8, 13, 0.0039, 510)
     };
 
-    // Turns heights into what shading needs: the slope (x, y) and the curvature, per design unit.
+    // Turns heights into what shading needs: the slope (x, y) and the curvature per design unit, and the depth.
     kernel void waterShape(texture2d<float, access::read> heights [[texture(0)]],
                            texture2d<float, access::write> shape [[texture(1)]],
+                           texture2d<float, access::read> depth [[texture(2)]],
                            constant WaterShape &water [[buffer(0)]],
                            uint2 cell [[thread_position_in_grid]]) {
         uint2 last = uint2(heights.get_width(), heights.get_height()) - 1;
@@ -127,12 +132,12 @@ enum Shaders {
             result.xy += direction * wave.z * cos(phase);
             result.z -= number * number * wave.z * sin(phase);
         }
-        shape.write(float4(result, 0), cell);
+        shape.write(float4(result, depth.read(cell).r), cell);
     }
 
     struct WaterLook {
         float4 size;    // target width, height; scene width, height in design units
-        float4 optics;  // refraction, depth for the light net, wave relief for glints, 1 if there is water
+        float4 optics;  // refraction and light focus per unit of depth, wave relief, 1 if there is water
         float4 light;   // rgb, strength of the light net
     };
 
@@ -148,16 +153,26 @@ enum Shaders {
         float2 spot = position.xy / look.size.xy;
         float4 top = above.sample(pixels, spot);
         if (look.optics.w < 0.5) return float4(below.sample(pixels, spot).rgb * (1 - top.a) + top.rgb, 1);
-        float3 surface = shape.sample(smooth, spot).xyz;
-        float3 color = below.sample(pixels, spot - surface.xy * look.optics.x / look.size.zw).rgb;
-        // A crest is a lens: light only moves around, so the floor brightens where the waves bend it together
-        // and darkens where they spread it (how much light lands = area before / area after).
-        float gathered = 1 / max(1 + look.optics.y * surface.z, 0.2);
-        color = mix(color, look.light.rgb, saturate(gathered - 1) * look.light.w) * (1 - saturate(1 - gathered) * look.light.w * 0.5);
-        // Seen from above, water reflects only ~2 % (Fresnel); tilted waves a little more, plus the odd glint of sun.
+        float4 surface = shape.sample(smooth, spot);
+        float depth = surface.w;
+        // Looking straight down, a tilted surface shifts the floor below it, the more the deeper it lies.
+        float3 color = below.sample(pixels, spot - surface.xy * depth * look.optics.x / look.size.zw).rgb;
+        // Sunlight reaches this bit of floor through the surface up towards the sun (top left, bent into the water),
+        // so the light and shadow a wave casts land beside it, further away where the floor lies deeper.
+        float2 towardsSun = float2(-0.16, -0.21) * depth;
+        float curvature = shape.sample(smooth, spot + towardsSun / look.size.zw).z;
+        // A crest is a lens: light only moves around, so the floor brightens where waves bend it together
+        // and falls into shadow where they spread it (how much light lands = area before / area after).
+        float gathered = 1 / max(1 + look.optics.y * depth * curvature, 0.2);
+        color = mix(color, look.light.rgb, saturate(gathered - 1) * look.light.w) * (1 - saturate(1 - gathered) * 0.45);
+        // The surface itself: sides facing the sun are a touch lighter, the far sides a touch darker,
+        // it reflects ~2 % seen from above (Fresnel), more where tilted, plus the odd glint of sun.
         float3 normal = normalize(float3(-surface.xy * look.optics.z, 1));
+        float3 sun = normalize(float3(-0.38, -0.5, 1.8));
+        float facing = dot(normal, sun) - sun.z;
+        color *= 1 + clamp(facing * 2.5, -0.12, 0.12);
         float fresnel = pow(1 - normal.z, 5) * 0.98;
-        float glint = pow(saturate(dot(normal, normalize(float3(-0.38, -0.5, 1.8)))), 900);
+        float glint = pow(saturate(dot(normal, normalize(sun + float3(0, 0, 1)))), 900);
         color = mix(color, look.light.rgb, saturate(glint * 0.8 + fresnel));
         return float4(color * (1 - top.a) + top.rgb, 1);
     }

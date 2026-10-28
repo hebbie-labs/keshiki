@@ -13,6 +13,9 @@ final class WaterSurface {
 
     /// Where the water can't move, e.g. under lily pads; waves bounce off them and off the edges.
     let obstacles: [Disc]
+    /// How deep the floor lies under a point, in design units: it sets how far the waves shift the floor
+    /// and where the light and shadow they cast land on it.
+    let depth: (Point) -> Double
     private var drops: [Drop] = []
 
     /// Most disturbances one frame carries to the GPU.
@@ -20,8 +23,9 @@ final class WaterSurface {
     /// The colour of the light on the floor and on the waves.
     static let light = Color(0xeafff5)
 
-    init(obstacles: [Disc]) {
+    init(obstacles: [Disc], depth: @escaping (Point) -> Double) {
         self.obstacles = obstacles
+        self.depth = depth
     }
 
     /// Pushes the water down around `center`; `strength` 1 is a fingertip.

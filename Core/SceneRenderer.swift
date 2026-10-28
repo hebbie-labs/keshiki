@@ -57,6 +57,7 @@ final class SceneRenderer {
         var heights: [MTLTexture]
         let shape: MTLTexture
         let obstacles: MTLTexture
+        let depth: MTLTexture
         var time = 0.0
     }
 
@@ -67,9 +68,10 @@ final class SceneRenderer {
     private static let waveDamping: Float = 0.985
     /// How deep a drop of strength 1 pushes the water, in design units.
     private static let dropDepth = 1.2
-    /// How far the waves shift the floor, how deep the floor lies for the light net, and how steep waves look for glints.
-    private static let refraction: Float = 9
-    private static let floorDepth: Float = 90
+    /// How far a tilted surface shifts the floor per unit of depth (1 - 1 / 1.33 for water), how strongly
+    /// the waves focus light per unit of depth, and how steep waves look for their lit sides and glints.
+    private static let refraction: Float = 0.25
+    private static let lightFocus: Float = 1.6
     private static let waveRelief: Float = 2.5
     private static let lightNetStrength: Float = 0.3
 
@@ -198,7 +200,7 @@ final class SceneRenderer {
         let light = WaterSurface.light
         var look = (
             SIMD4<Float>(Float(target.width), Float(target.height), Float(Double(below.width) / scale), Float(Double(below.height) / scale)),
-            SIMD4<Float>(Self.refraction, Self.floorDepth, Self.waveRelief, water == nil ? 0 : 1),
+            SIMD4<Float>(Self.refraction, Self.lightFocus, Self.waveRelief, water == nil ? 0 : 1),
             SIMD4<Float>(Float(light.red) / 255, Float(light.green) / 255, Float(light.blue) / 255, Self.lightNetStrength)
         )
         encoder.setRenderPipelineState(shared.compose)
@@ -236,6 +238,7 @@ final class SceneRenderer {
         encoder.setComputePipelineState(shared.waterShape)
         encoder.setTexture(water.heights[0], index: 0)
         encoder.setTexture(water.shape, index: 1)
+        encoder.setTexture(water.depth, index: 2)
         encoder.setBytes(&shape, length: MemoryLayout.size(ofValue: shape), index: 0)
         encoder.dispatchThreads(grid, threadsPerThreadgroup: group)
         encoder.endEncoding()
@@ -289,21 +292,24 @@ final class SceneRenderer {
             return shared.device.makeTexture(descriptor: descriptor)
         }
         guard let first = texture(.rg32Float, [.shaderRead, .shaderWrite]), let second = texture(.rg32Float, [.shaderRead, .shaderWrite]),
-              let shape = texture(.rgba16Float, [.shaderRead, .shaderWrite]), let obstacles = texture(.r8Unorm, .shaderRead) else { return nil }
+              let shape = texture(.rgba16Float, [.shaderRead, .shaderWrite]), let obstacles = texture(.r8Unorm, .shaderRead),
+              let depth = texture(.r32Float, .shaderRead) else { return nil }
         let flat = [Float](repeating: 0, count: columns * rows * 2)
         for heights in [first, second] {
             flat.withUnsafeBytes { heights.replace(region: MTLRegionMake2D(0, 0, columns, rows), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: columns * 8) }
         }
-        var mask = [UInt8](repeating: 0, count: columns * rows)
+        var mask = [UInt8](repeating: 0, count: columns * rows), depths = [Float](repeating: 0, count: columns * rows)
         for row in 0..<rows {
             for column in 0..<columns {
                 let center = Point(x: (Double(column) + 0.5) * Self.waterCell, y: (Double(row) + 0.5) * Self.waterCell)
+                depths[row * columns + column] = Float(surface.depth(center))
                 // A cell counts as blocked when it lies wholly under the obstacle, so the water reaches its rim.
                 if surface.obstacles.contains(where: { center.distance(to: $0.center) < $0.radius - Self.waterCell }) { mask[row * columns + column] = 255 }
             }
         }
         mask.withUnsafeBytes { obstacles.replace(region: MTLRegionMake2D(0, 0, columns, rows), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: columns) }
-        return Water(heights: [first, second], shape: shape, obstacles: obstacles)
+        depths.withUnsafeBytes { depth.replace(region: MTLRegionMake2D(0, 0, columns, rows), mipmapLevel: 0, withBytes: $0.baseAddress!, bytesPerRow: columns * 4) }
+        return Water(heights: [first, second], shape: shape, obstacles: obstacles, depth: depth)
     }
 
     private func uploadNewLayers(of scene: LivingScene) {

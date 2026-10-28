@@ -22,12 +22,16 @@ final class PondWorld {
     var usualSpot: Point?
 
     private static let koiCount = 8
+    /// The floor lies this deep at the edges and this much deeper in the middle, in design units.
+    private static let shallowDepth = 8.0
+    private static let depthRange = 52.0
 
     init(size: SceneSize, options: KoiPondSettings) {
         self.size = size
         self.options = options
         pads = LilyPad.scatter(in: size)
-        water = WaterSurface(obstacles: pads.map { WaterSurface.Disc(center: $0.center, radius: $0.radius) })
+        water = WaterSurface(obstacles: pads.map { WaterSurface.Disc(center: $0.center, radius: $0.radius) },
+                             depth: { [size] in Self.shallowDepth + Self.depthRange * PondFloor.depth(x: $0.x, y: $0.y, size: size) })
         duckweed = PondWorld.scatterDuckweed(in: size)
         schools = [.himedaka, .tanago, .oikawa, .motsugo].map { FishSchool(species: $0, in: size) }
         frog = Frog(pad: pads[0])
