@@ -11,8 +11,6 @@ struct LilyPad {
     private static let count = 13
     private static let placementAttempts = 600
     private static let minimumGap = 4.0
-    private static let shadowOffset = Point(x: 10, y: 14)
-    private static let shadow = Color(0x0b2e26, alpha: 0.32)
     private static let leaf = Color(0x2d6a3a)
     private static let leafLight = Color(0x3c8246)
     private static let rim = Color(0x5fa45f)
@@ -30,11 +28,7 @@ struct LilyPad {
         return pads
     }
 
-    /// Pads lie still, so they're painted once: the shadow into the floor, the pad into the scene's overlay.
-    func drawShadow(on canvas: Canvas) {
-        canvas.disc(Point(x: center.x + Self.shadowOffset.x, y: center.y + Self.shadowOffset.y), radius: radius, Self.shadow)
-    }
-
+    /// Pads lie still, so they're painted once into the scene's overlay; the water casts their shadows.
     func draw(on canvas: Canvas) {
         let top = center
         canvas.disc(top, radius: radius, Self.leaf)

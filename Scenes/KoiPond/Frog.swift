@@ -54,14 +54,14 @@ final class Frog {
         guard let target = nearby.randomElement() ?? world.pads.randomElement() else { return }
         jump = Jump(from: pad, to: target)
         restingFor = random(Self.restSeconds)
-        world.addRipple(at: pad.center, radius: 4, life: 0.7)
+        world.addRipple(at: pad.center, radius: pad.radius, strength: 0.7)
     }
 
     private func land(in world: PondWorld) {
         guard let landing = jump?.to else { return }
         pad = landing
         jump = nil
-        world.addRipple(at: pad.center, radius: pad.radius * 0.6, life: 0.8)
+        world.addRipple(at: pad.center, radius: pad.radius, strength: 0.8)
     }
 
     private func positionAndLift(at time: Double) -> (Point, Double) {

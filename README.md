@@ -36,19 +36,24 @@ its first launch.
   free. As soon as any app window lies on that display (focused or not), or the
   desktop is covered, it rests: the last frame stays, and nothing is simulated
   or drawn there. It can rest on battery too.
-- **Light on the machine:** drawn on the GPU with Metal at 1440 px wide and
-  scaled up with crisp pixels. Measured on an Apple Silicon Mac: about 2 % CPU
-  and 1 % GPU per playing display at 30 fps (4 % CPU for the whole app with one
-  display playing), and about 200 MB of memory, ~113 MB of which is the fixed
-  cost of using Metal at all.
+- **In 3D:** the pond is a real basin seen from a slightly tilted camera,
+  drawn with Metal. The koi, the plants and the visitors stay pixel art
+  (1440 px wide), laid in at their depth. Measured on an Apple Silicon Mac at
+  30 fps: about 4 % of one CPU core per playing display.
 
 ## Koi Pond
 
 - **Eight koi with a life of their own.** Each has a favourite: herding the
   tiny fish, grazing duckweed, lotus shade, the frog, the ball or the goose.
-- **A living pond.** Clear water with a wobbling net of sunlight on the floor,
-  shafts of light, water plants along the shallow edges, deep shadows under
-  the lily pads, and schools of Japanese pond fish (hime-medaka, tanago
+- **Real water.** Waves spread, overlap and bounce off the edges and the lily
+  pads. The surface reflects the sky and glitters in the sun; below it the
+  water bends the view of the floor, focuses sunlight into a moving net of
+  light, and swallows light with depth, so the floor fades into green-blue
+  where the pond is deep. Lily pads and koi cast their shadows onto the floor,
+  further off the deeper it lies. Clicks, food, rain, the frog and the goose
+  all make waves.
+- **A living pond.** Clear water over a sunlit floor, water plants along the
+  shallow edges, and schools of Japanese pond fish (hime-medaka, tanago
   bitterlings, oikawa and motsugo) that swim in bursts and glides.
 - **They learn your routine.** Feed them at the same spot around the same time
   on two different days and they'll be waiting there.
@@ -74,16 +79,21 @@ The version comes from `CFBundleShortVersionString` in `App/Info.plist`.
   - `LivingScene` is what a scene must do; scenes draw into a `Canvas` in
     design units (960 wide) and render at `pixelScale` (1.5 → 1440 px).
   - `DrawList` records each frame as rectangles and discs; `SceneRenderer`
-    draws them on the GPU as instanced quads (`Shaders`), over the scene's
-    painted backdrop with the `Caustics` light net, with a static overlay in
-    between (stored as a palette texture). All displays share one GPU
-    submission per frame.
+    draws them on the GPU as instanced quads (`Shaders`) in two pixel-art
+    layers: what swims, and what floats (with a static overlay, stored as a
+    palette texture). A scene's `WaterSurface` says where the water can't move,
+    how deep it is and where it was disturbed; the renderer simulates it as a
+    height field in a compute shader.
+  - `WaterStage` lays it all out in 3D: the painted backdrop as the floor's
+    basin, the swimming layer under the surface, and the surface moved by the
+    waves, carrying the floating layer and reflecting the sky (`StageShaders`).
   - `PixelBuffer` paints the static layers once on the CPU; their CPU copies
     are dropped after upload.
   - `Atmosphere` (time of day, rain, fireflies) and `KeshikiSettings`.
 - `Scenes/` — `SceneKind` lists every scene; each has its own folder.
   - `KoiPond/` — `KoiPondScene` owns a `PondWorld` (`Koi`, `FishSchool`,
-    `Frog`, `Goose`, `Ball`, `LilyPad`, duckweed, food, ripples), the painted
+    `Frog`, `Goose`, `Ball`, `LilyPad`, duckweed, food, and the ripples they
+    make in the water), the painted
     `PondFloor` (backdrop) and lily pads (overlay), the learning in `KoiMemory`
     and `KoiPondSettings`.
 - `App/` — the menu bar app (AppKit, no Xcode project needed).

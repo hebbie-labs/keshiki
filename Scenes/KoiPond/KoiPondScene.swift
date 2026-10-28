@@ -21,7 +21,8 @@ final class KoiPondScene: LivingScene {
         world = PondWorld(size: size, options: options)
         world.raining = settings.rain
         floorWater = options.water
-        newFloor = PondFloor.paint(size: size, scale: pixelScale, waterName: options.water, pads: world.pads)
+        newFloor = PondFloor.paint(size: size, scale: pixelScale, waterName: options.water)
+        world.water.color = WaterPalette.named(options.water).deepWater
         newOverlay = paintLilyPads()
     }
 
@@ -40,7 +41,7 @@ final class KoiPondScene: LivingScene {
     var pixelWidth: Int { Int((world.size.width * pixelScale).rounded()) }
     var pixelHeight: Int { Int((world.size.height * pixelScale).rounded()) }
 
-    var caustics: CausticsFrame? { Caustics.frame(at: time) }
+    var water: WaterSurface? { world.water }
 
     func advance(by dt: Double) {
         time += dt
@@ -80,7 +81,8 @@ final class KoiPondScene: LivingScene {
 
     private func repaintFloorIfWaterChanged() {
         guard options.water != floorWater else { return }
-        newFloor = PondFloor.paint(size: world.size, scale: pixelScale, waterName: options.water, pads: world.pads)
+        newFloor = PondFloor.paint(size: world.size, scale: pixelScale, waterName: options.water)
+        world.water.color = WaterPalette.named(options.water).deepWater
         floorWater = options.water
     }
 

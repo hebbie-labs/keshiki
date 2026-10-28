@@ -15,18 +15,23 @@ final class PondWorld {
     let frog: Frog
     private(set) var kois: [Koi] = []
     var food: [FoodPellet] = []
-    var ripples: [Ripple] = []
+    let water: WaterSurface
     private(set) var goose: Goose?
     private(set) var ball: Ball?
     private(set) var greetingSpot: Point?
     var usualSpot: Point?
 
     private static let koiCount = 8
+    /// The floor lies this deep at the edges and this much deeper in the middle, in design units.
+    private static let shallowDepth = 8.0
+    private static let depthRange = 52.0
 
     init(size: SceneSize, options: KoiPondSettings) {
         self.size = size
         self.options = options
         pads = LilyPad.scatter(in: size)
+        water = WaterSurface(obstacles: pads.map { WaterSurface.Disc(center: $0.center, radius: $0.radius) },
+                             depth: { [size] in Self.shallowDepth + Self.depthRange * PondFloor.depth(x: $0.x, y: $0.y, size: size) })
         duckweed = PondWorld.scatterDuckweed(in: size)
         schools = [.himedaka, .tanago, .oikawa, .motsugo].map { FishSchool(species: $0, in: size) }
         frog = Frog(pad: pads[0])
@@ -45,21 +50,20 @@ final class PondWorld {
         if let goose, !goose.update(in: self, dt: dt) { self.goose = nil }
         ball?.update(in: self, dt: dt)
         if raining { addRaindrops() }
-        updateRipples(dt: dt)
     }
 
-    /// What swims below, then what floats on top. The floor (and its light) is the backdrop; the scene adds the sky.
+    /// What swims below, then what floats on top. The floor is the backdrop; the water casts the shadows
+    /// and the scene adds the sky.
     func draw(on canvas: Canvas, time: Double) {
-        kois.forEach { $0.drawShadow(on: canvas) }
         schools.forEach { $0.draw(on: canvas) }
         kois.forEach { $0.draw(on: canvas) }
+        canvas.placeSurface()
         drawFood(on: canvas)
         drawDuckweed(on: canvas)
         canvas.placeOverlay()
         frog.draw(on: canvas, time: time)
         ball?.draw(on: canvas)
         goose?.draw(on: canvas, time: time)
-        drawRipples(on: canvas)
     }
 
     func touchWater(at point: Point) {
@@ -74,7 +78,7 @@ final class PondWorld {
         case .ball:
             let position = size.randomPoint(marginX: 120, marginY: 100)
             ball = Ball(at: position)
-            for ring in 0..<3 { addRipple(at: position, radius: 2 + Double(ring) * 4) }
+            addRipple(at: position, radius: 8, strength: 1.5)
         case .clear:
             goose?.leave()
             ball = nil

@@ -16,8 +16,12 @@ final class DrawList: Canvas {
     let height: Int
     let scale: PixelScale
     private(set) var primitives: [Primitive] = []
+    /// How many shapes swim under the water; nil if the scene has no surface.
+    private(set) var surfaceIndex: Int?
     /// How many shapes go below the overlay; nil if the scene didn't place one.
     private(set) var overlayIndex: Int?
+    /// Colours laid over the whole finished frame, like the light of the time of day, in order.
+    private(set) var covers: [Color] = []
 
     init(width: Int, height: Int, scale: Double) {
         self.width = width
@@ -28,7 +32,13 @@ final class DrawList: Canvas {
 
     func reset() {
         primitives.removeAll(keepingCapacity: true)
+        surfaceIndex = nil
         overlayIndex = nil
+        covers.removeAll(keepingCapacity: true)
+    }
+
+    func placeSurface() {
+        surfaceIndex = primitives.count
     }
 
     func placeOverlay() {
@@ -55,7 +65,7 @@ final class DrawList: Canvas {
     }
 
     func cover(with color: Color) {
-        append(SIMD4(0, 0, Float(width), Float(height)), color, disc: .zero)
+        covers.append(color)
     }
 
     private func append(_ bounds: SIMD4<Float>, _ color: Color, disc: SIMD4<Float>) {

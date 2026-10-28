@@ -4,8 +4,7 @@ import ScreenSaver
 @objc(KeshikiSaverView)
 final class KeshikiSaverView: ScreenSaverView {
     /// Settings live with the app, which a screensaver can't read; for now it always shows the koi pond.
-    private var scene: LivingScene?
-    private var renderer: SceneRenderer?
+    private var stage: WaterStage?
     private let metalLayer = CAMetalLayer()
 
     private static let framesPerSecond = 30.0
@@ -29,10 +28,10 @@ final class KeshikiSaverView: ScreenSaverView {
 
     override func startAnimation() {
         super.startAnimation()
-        let scene = SceneKind.koiPond.make(aspectRatio: bounds.width / max(bounds.height, 1), settings: KeshikiSettings())
-        SceneRenderer.configure(metalLayer, width: scene.pixelWidth, height: scene.pixelHeight)
-        self.scene = scene
-        renderer = SceneRenderer(scene: scene)
+        let aspect = bounds.width / max(bounds.height, 1)
+        let scene = SceneKind.koiPond.make(aspectRatio: WaterStage.pondAspect(screenAspect: aspect), settings: KeshikiSettings())
+        WaterStage.configure(metalLayer, width: scene.pixelWidth, height: Int((Double(scene.pixelWidth) / aspect).rounded()))
+        stage = WaterStage(scene: scene, screenAspect: aspect)
     }
 
     override func stopAnimation() {
@@ -41,13 +40,12 @@ final class KeshikiSaverView: ScreenSaverView {
     }
 
     override func animateOneFrame() {
-        guard let scene, let renderer else { return }
-        scene.advance(by: 1 / Self.framesPerSecond)
-        SceneRenderer.render([SceneRenderer.Job(renderer: renderer, scene: scene, layer: metalLayer)])
+        guard let stage, let drawable = metalLayer.nextDrawable() else { return }
+        stage.scene.advance(by: 1 / Self.framesPerSecond)
+        stage.render(into: drawable.texture) { $0.present(drawable) }
     }
 
     @objc private func releaseScene() {
-        scene = nil
-        renderer = nil
+        stage = nil
     }
 }
