@@ -71,7 +71,7 @@ final class SceneRenderer {
     private static let refraction: Float = 9
     private static let floorDepth: Float = 90
     private static let waveRelief: Float = 2.5
-    private static let lightNetStrength: Float = 0.32
+    private static let lightNetStrength: Float = 0.3
 
     /// One display's share of a frame.
     struct Job {

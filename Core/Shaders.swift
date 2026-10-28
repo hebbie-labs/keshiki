@@ -98,9 +98,9 @@ enum Shaders {
     // A breeze that never stops: a few long waves added to the simulated ones,
     // so the floor always carries a moving net of light. Whole cycles per 600 s, so time can loop.
     constant float4 breeze[12] = {   // direction (radians), wavelength, height, cycles per 600 s
-        float4(0.3, 34, 0.040, 290), float4(1.9, 27, 0.035, 330), float4(3.6, 41, 0.045, 240), float4(5.0, 23, 0.030, 370),
-        float4(2.6, 52, 0.050, 190), float4(4.3, 31, 0.035, 310), float4(1.1, 19, 0.022, 420), float4(5.7, 45, 0.040, 220),
-        float4(0.8, 15, 0.016, 470), float4(2.2, 21, 0.024, 400), float4(3.1, 17, 0.018, 440), float4(4.8, 13, 0.012, 510)
+        float4(0.3, 34, 0.0132, 290), float4(1.9, 27, 0.0116, 330), float4(3.6, 41, 0.0149, 240), float4(5.0, 23, 0.0099, 370),
+        float4(2.6, 52, 0.0165, 190), float4(4.3, 31, 0.0116, 310), float4(1.1, 19, 0.0072, 420), float4(5.7, 45, 0.0132, 220),
+        float4(0.8, 15, 0.0055, 470), float4(2.2, 21, 0.0077, 400), float4(3.1, 17, 0.0060, 440), float4(4.8, 13, 0.0039, 510)
     };
 
     // Turns heights into what shading needs: the slope (x, y) and the curvature, per design unit.
@@ -150,14 +150,15 @@ enum Shaders {
         if (look.optics.w < 0.5) return float4(below.sample(pixels, spot).rgb * (1 - top.a) + top.rgb, 1);
         float3 surface = shape.sample(smooth, spot).xyz;
         float3 color = below.sample(pixels, spot - surface.xy * look.optics.x / look.size.zw).rgb;
-        // A crest is a lens: where it bends light together the floor brightens (1 / how much the light spreads).
-        float spread = max(1 + look.optics.y * surface.z, 0.12);
-        float focus = pow(saturate((1 / spread - 1) * 0.6), 1.6);
-        color = mix(color, look.light.rgb, focus * look.light.w);
+        // A crest is a lens: light only moves around, so the floor brightens where the waves bend it together
+        // and darkens where they spread it (how much light lands = area before / area after).
+        float gathered = 1 / max(1 + look.optics.y * surface.z, 0.2);
+        color = mix(color, look.light.rgb, saturate(gathered - 1) * look.light.w) * (1 - saturate(1 - gathered) * look.light.w * 0.5);
+        // Seen from above, water reflects only ~2 % (Fresnel); tilted waves a little more, plus the odd glint of sun.
         float3 normal = normalize(float3(-surface.xy * look.optics.z, 1));
+        float fresnel = pow(1 - normal.z, 5) * 0.98;
         float glint = pow(saturate(dot(normal, normalize(float3(-0.38, -0.5, 1.8)))), 900);
-        float sky = saturate(length(surface.xy) * look.optics.z * 0.6) * 0.1;
-        color = mix(color, look.light.rgb, saturate(glint * 0.8 + sky));
+        color = mix(color, look.light.rgb, saturate(glint * 0.8 + fresnel));
         return float4(color * (1 - top.a) + top.rgb, 1);
     }
     """
