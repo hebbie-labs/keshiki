@@ -183,7 +183,7 @@ final class FishSchool {
             canvas.plot(Point(x: segment.point.x + Self.shadowOffset.x, y: segment.point.y + Self.shadowOffset.y), Self.shadow)
         }
         drawTail(points, from: bodyEnd, on: canvas)
-        drawPectoralFins(points, on: canvas)
+        drawPectoralFins(points, turning: member.turning, on: canvas)
         // Solid discs along the spine (and between points), so a diagonal fish has no gaps.
         for (step, segment) in points.prefix(bodyEnd).enumerated() {
             let half = halfWidth(at: Double(step) / Double(species.length - 1))
@@ -208,10 +208,11 @@ final class FishSchool {
         }
     }
 
-    private func drawPectoralFins(_ points: [(point: Point, direction: Double)], on canvas: Canvas) {
-        let shoulder = points[3]
+    /// Banking into a turn, the outer fin stands out and the inner one lies against the body.
+    private func drawPectoralFins(_ points: [(point: Point, direction: Double)], turning: Double, on canvas: Canvas) {
+        let shoulder = points[3], lean = clamp(turning * 25, -1, 1)
         for side in [-1.0, 1.0] {
-            canvas.plot(shoulder.point.moved(by: species.halfWidth + 1, heading: shoulder.direction + side * 2.2), species.fin)
+            canvas.plot(shoulder.point.moved(by: species.halfWidth + 1 - side * lean, heading: shoulder.direction + side * 2.2), species.fin)
         }
     }
 

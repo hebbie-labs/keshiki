@@ -62,6 +62,12 @@ let shared = SharedSettings([SharedSettings.generalKey: Data(#"{"theme":"dusk","
 check(shared.general.theme == "dusk" && shared.general.rain && shared.koiPond.water == "deep-clear", "the screensaver and the wallpaper read the app's settings")
 check(SharedSettings(["settings": Data("garbage".utf8)]).general == KeshikiSettings(), "unreadable shared settings fall back to the defaults")
 
+// Swimming
+let pondWorld = PondWorld(size: SceneSize(width: 960, height: 600), options: KoiPondSettings())
+for _ in 0..<600 { pondWorld.update(dt: 1.0 / 30) }
+let gaps = zip(pondWorld.kois[0].body, pondWorld.kois[0].body.dropFirst()).map { $0.distance(to: $1) }
+check(gaps.max()! - gaps.min()! < 0.01, "a koi's body keeps its segment length while it swings")
+
 // Drawing
 let tiny = PixelBuffer(width: 10, height: 10)
 tiny.fillRect(Point(x: 3, y: -20), width: 2, height: 2, Color(0xffffff))
