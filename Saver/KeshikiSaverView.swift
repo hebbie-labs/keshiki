@@ -1,9 +1,10 @@
 import ScreenSaver
 
-/// The pond as a system screensaver, which macOS also shows when the screen locks.
-@objc(PondSaverView)
-final class PondSaverView: ScreenSaverView {
-    private var scene: PondScene?
+/// Keshiki as a system screensaver, which macOS also shows when the screen locks.
+@objc(KeshikiSaverView)
+final class KeshikiSaverView: ScreenSaverView {
+    /// Settings live with the app, which a screensaver can't read; for now it always shows the koi pond.
+    private var scene: LivingScene?
 
     private static let framesPerSecond = 30.0
 
@@ -14,26 +15,26 @@ final class PondSaverView: ScreenSaverView {
         wantsLayer = true
         layer?.magnificationFilter = .nearest
         layer?.contentsGravity = .resize
-        // Since Sonoma the screensaver host keeps instances alive after stopping; free the pond explicitly.
-        DistributedNotificationCenter.default().addObserver(self, selector: #selector(releasePond),
+        // Since Sonoma the screensaver host keeps instances alive after stopping; free the scene explicitly.
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(releaseScene),
                                                             name: .init("com.apple.screensaver.willstop"), object: nil)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
-        fatalError("PondSaverView is created by the screensaver host only")
+        fatalError("KeshikiSaverView is created by the screensaver host only")
     }
 
     override var hasConfigureSheet: Bool { false }
 
     override func startAnimation() {
         super.startAnimation()
-        scene = PondScene(aspectRatio: bounds.width / max(bounds.height, 1), settings: PondSettings())
+        scene = SceneKind.koiPond.make(aspectRatio: bounds.width / max(bounds.height, 1), settings: KeshikiSettings())
     }
 
     override func stopAnimation() {
         super.stopAnimation()
-        releasePond()
+        releaseScene()
     }
 
     override func animateOneFrame() {
@@ -45,7 +46,7 @@ final class PondSaverView: ScreenSaverView {
         CATransaction.commit()
     }
 
-    @objc private func releasePond() {
+    @objc private func releaseScene() {
         scene = nil
         layer?.contents = nil
     }

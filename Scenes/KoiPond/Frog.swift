@@ -23,7 +23,7 @@ final class Frog {
         self.pad = pad
     }
 
-    func update(in world: World, dt: Double) {
+    func update(in world: PondWorld, dt: Double) {
         restingFor -= dt
         blinkIn -= dt
         if blinkIn < -0.15 { blinkIn = random(2...6) }
@@ -49,7 +49,7 @@ final class Frog {
         }
     }
 
-    private func startJump(in world: World) {
+    private func startJump(in world: PondWorld) {
         let nearby = world.pads.filter { $0.center != pad.center && $0.center.distance(to: pad.center) < Self.maxJumpDistance }
         guard let target = nearby.randomElement() ?? world.pads.randomElement() else { return }
         jump = Jump(from: pad, to: target)
@@ -57,7 +57,7 @@ final class Frog {
         world.addRipple(at: pad.center, radius: 4, life: 0.7)
     }
 
-    private func land(in world: World) {
+    private func land(in world: PondWorld) {
         guard let landing = jump?.to else { return }
         pad = landing
         jump = nil

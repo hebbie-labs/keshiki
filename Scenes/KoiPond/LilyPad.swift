@@ -18,7 +18,7 @@ struct LilyPad {
     private static let vein = Color(0x22552f)
 
     /// Pads may hang over the edges, like in a real pond.
-    static func scatter(in size: PondSize) -> [LilyPad] {
+    static func scatter(in size: SceneSize) -> [LilyPad] {
         var pads: [LilyPad] = []
         for _ in 0..<placementAttempts where pads.count < count {
             let pad = LilyPad(center: Point(x: random(-10...(size.width + 10)), y: random(-10...(size.height + 10))),

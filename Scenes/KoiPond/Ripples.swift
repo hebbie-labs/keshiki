@@ -7,7 +7,7 @@ struct Ripple {
     var life: Double
 }
 
-extension World {
+extension PondWorld {
     private static let rippleGrowthPerSecond = 26.0
     private static let rippleFadePerSecond = 0.8
     private static let raindropsPerFrame = 3

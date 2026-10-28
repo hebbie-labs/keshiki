@@ -1,9 +1,9 @@
-APP_NAME := Wallpapers
+APP_NAME := Keshiki
 APP      := build/$(APP_NAME).app
 SAVER    := build/$(APP_NAME).saver
 VERSION  := $(shell /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' App/Info.plist)
 DMG      := build/$(APP_NAME)-$(VERSION).dmg
-ENGINE   := $(wildcard Engine/*.swift)
+ENGINE   := $(wildcard Core/*.swift Scenes/*.swift Scenes/*/*.swift)
 SWIFTC   := swiftc -O -swift-version 5 -target arm64-apple-macos14.0
 
 .PHONY: app saver dmg run test clean
@@ -17,12 +17,12 @@ app: saver
 	cp -R $(SAVER) $(APP)/Contents/Resources/
 	codesign --force --deep --sign - $(APP)
 
-# The same engine as a system screensaver (a loadable bundle).
+# The same scenes as a system screensaver (a loadable bundle).
 saver:
 	rm -rf $(SAVER)
 	mkdir -p $(SAVER)/Contents/MacOS $(SAVER)/Contents/Resources
-	$(SWIFTC) -module-name PondSaver -emit-library -Xlinker -bundle -Xlinker -undefined -Xlinker dynamic_lookup \
-		$(ENGINE) $(wildcard Saver/*.swift) -o $(SAVER)/Contents/MacOS/PondSaver
+	$(SWIFTC) -module-name KeshikiSaver -emit-library -Xlinker -bundle -Xlinker -undefined -Xlinker dynamic_lookup \
+		$(ENGINE) $(wildcard Saver/*.swift) -o $(SAVER)/Contents/MacOS/KeshikiSaver
 	cp Saver/Info.plist $(SAVER)/Contents/Info.plist
 	cp Assets/AppIcon.icns $(SAVER)/Contents/Resources/thumbnail.icns
 	codesign --force --sign - $(SAVER)

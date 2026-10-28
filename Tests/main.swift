@@ -19,7 +19,7 @@ func near(_ a: Point?, _ b: Point) -> Bool {
 }
 
 // Learning a routine
-var memory = PondMemory()
+var memory = KoiMemory()
 memory.recordFeeding(at: Point(x: 0.2, y: 0.4), on: at(day: 1, 8, 30))
 memory.recordFeeding(at: Point(x: 0.2, y: 0.4), on: at(day: 1, 8, 35))
 check(memory.usualSpot(at: at(day: 2, 8, 30)) == nil, "a routine needs feedings on two different days")
@@ -27,16 +27,16 @@ memory.recordFeeding(at: Point(x: 0.4, y: 0.6), on: at(day: 2, 8, 25))
 check(near(memory.usualSpot(at: at(day: 3, 8, 40)), Point(x: 0.2667, y: 0.4667)), "the usual spot averages nearby feedings")
 check(memory.usualSpot(at: at(day: 3, 12, 0)) == nil, "feedings at other times of day are ignored")
 
-var midnight = PondMemory()
+var midnight = KoiMemory()
 midnight.recordFeeding(at: Point(x: 0.5, y: 0.5), on: at(day: 1, 23, 55))
 midnight.recordFeeding(at: Point(x: 0.5, y: 0.5), on: at(day: 2, 23, 50))
 check(near(midnight.usualSpot(at: at(day: 3, 0, 5)), Point(x: 0.5, y: 0.5)), "routines wrap around midnight")
 
-var busy = PondMemory()
+var busy = KoiMemory()
 for _ in 0..<100 { busy.recordFeeding(at: Point(x: 0, y: 0), on: at(day: 1, 8, 0)) }
 check(busy.feedings.count == 60, "only the most recent feedings are remembered")
 
-var greeting = PondMemory()
+var greeting = KoiMemory()
 check(greeting.claimDailyGreeting(on: at(day: 1, 9, 0)), "the first visit of a day gets a greeting")
 check(!greeting.claimDailyGreeting(on: at(day: 1, 18, 0)), "later visits that day don't")
 check(greeting.claimDailyGreeting(on: at(day: 2, 7, 0)), "the next day greets again")
@@ -52,8 +52,10 @@ check(TimeOfDay.current(theme: "golden", systemDark: false, date: at(day: 1, 3, 
 
 // Geometry and settings
 check(abs(angleDifference(from: 3, to: -3) - (2 * .pi - 6)) < 0.0001, "turning takes the short way round")
-let legacy = try! JSONDecoder().decode(PondSettings.self, from: Data(#"{"theme":"night","rain":true}"#.utf8))
-check(legacy.theme == "night" && legacy.rain && legacy.lockScreenPond, "settings saved by older versions still load")
+let wallpapers = Data(#"{"theme":"night","rain":true,"mood":"playful","lockScreenPond":false}"#.utf8)
+let general = try! JSONDecoder().decode(KeshikiSettings.self, from: wallpapers)
+check(general.theme == "night" && general.rain && !general.showOnLockScreen && general.scene == .koiPond, "Wallpapers 1.x settings carry over")
+check(try! JSONDecoder().decode(KoiPondSettings.self, from: wallpapers).mood == "playful", "the koi fields carry over from the same data")
 
 // Rendering
 let tiny = PixelBuffer(width: 10, height: 10)
@@ -61,7 +63,7 @@ tiny.fillRect(Point(x: 3, y: -20), width: 2, height: 2, Color(0xffffff))
 tiny.fillRect(Point(x: 40, y: 3), width: 2, height: 2, Color(0xffffff))
 tiny.heart(Point(x: 5, y: -30), opacity: 1)
 check(tiny.pixels.allSatisfy { $0 == Color(0x000000).packed }, "drawing off the canvas is ignored instead of crashing")
-let scene = PondScene(aspectRatio: 16.0 / 10.0, settings: PondSettings())
+let scene = SceneKind.koiPond.make(aspectRatio: 16.0 / 10.0, settings: KeshikiSettings())
 for _ in 0..<90 { scene.advance(by: 1.0 / 30) }
 let frame = scene.render()
 check(frame?.width == 960 && frame?.height == 600, "a 16:10 pond renders at 960×600")

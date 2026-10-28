@@ -5,9 +5,10 @@ enum Visitor: String {
 }
 
 /// Everything living in one pond, and the order it's drawn in.
-final class World {
-    let size: PondSize
-    var settings: PondSettings
+final class PondWorld {
+    let size: SceneSize
+    var options: KoiPondSettings
+    var raining = false
     let pads: [LilyPad]
     var duckweed: [DuckweedLeaf]
     let schools: [FishSchool]
@@ -15,7 +16,6 @@ final class World {
     private(set) var kois: [Koi] = []
     var food: [FoodPellet] = []
     var ripples: [Ripple] = []
-    var fireflies: [Firefly] = []
     private(set) var goose: Goose?
     private(set) var ball: Ball?
     private(set) var greetingSpot: Point?
@@ -23,11 +23,11 @@ final class World {
 
     private static let koiCount = 8
 
-    init(size: PondSize, settings: PondSettings) {
+    init(size: SceneSize, options: KoiPondSettings) {
         self.size = size
-        self.settings = settings
+        self.options = options
         pads = LilyPad.scatter(in: size)
-        duckweed = World.scatterDuckweed(in: size)
+        duckweed = PondWorld.scatterDuckweed(in: size)
         schools = [.himedaka, .tanago, .oikawa, .motsugo].map { FishSchool(species: $0, in: size) }
         frog = Frog(pad: pads[0])
         kois = (0..<Self.koiCount).map { Koi(index: $0, in: size) }
@@ -44,12 +44,12 @@ final class World {
         frog.update(in: self, dt: dt)
         if let goose, !goose.update(in: self, dt: dt) { self.goose = nil }
         ball?.update(in: self, dt: dt)
-        if settings.rain { addRaindrops() }
+        if raining { addRaindrops() }
         updateRipples(dt: dt)
     }
 
-    /// Floor light first, then what swims below, what floats on top, and finally the sky's tint.
-    func draw(on canvas: PixelBuffer, time: Double, timeOfDay: TimeOfDay) {
+    /// Floor light first, then what swims below, and what floats on top. The scene adds the sky.
+    func draw(on canvas: PixelBuffer, time: Double) {
         Caustics.draw(on: canvas, time: time)
         kois.forEach { $0.drawShadow(on: canvas) }
         pads.forEach { $0.drawShadow(on: canvas, time: time) }
@@ -62,12 +62,11 @@ final class World {
         ball?.draw(on: canvas)
         goose?.draw(on: canvas, time: time)
         drawRipples(on: canvas)
-        Sky.draw(on: canvas, world: self, timeOfDay: timeOfDay, time: time)
     }
 
     func touchWater(at point: Point) {
         addRipple(at: point)
-        if settings.callOnClick { kois.forEach { $0.call(to: point) } }
+        if options.callOnClick { kois.forEach { $0.call(to: point) } }
     }
 
     func invite(_ visitor: Visitor) {

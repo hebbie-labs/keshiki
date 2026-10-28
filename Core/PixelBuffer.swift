@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// An opaque 32-bit image the pond is drawn into, pixel by pixel, then shown scaled up with nearest-neighbour.
+/// An opaque 32-bit image a scene is drawn into, pixel by pixel, then shown scaled up with nearest-neighbour.
 final class PixelBuffer {
     let width: Int
     let height: Int

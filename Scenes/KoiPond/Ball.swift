@@ -24,7 +24,7 @@ final class Ball {
         return true
     }
 
-    func update(in world: World, dt: Double) {
+    func update(in world: PondWorld, dt: Double) {
         position.x += velocity.x * dt * 60
         position.y += velocity.y * dt * 60
         bounceOffEdges(of: world.size)
@@ -50,7 +50,7 @@ final class Ball {
         canvas.fillRect(Point(x: position.x - 4, y: position.y - 5), width: 2, height: 1, Color(0xffffff, alpha: 0.6))
     }
 
-    private func bounceOffEdges(of size: PondSize) {
+    private func bounceOffEdges(of size: SceneSize) {
         if position.x < 10 || position.x > size.width - 10 {
             velocity.x *= -Self.bounce
             position.x = clamp(position.x, 10, size.width - 10)

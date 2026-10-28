@@ -22,7 +22,7 @@ struct Point: Equatable {
     }
 }
 
-struct PondSize {
+struct SceneSize {
     let width: Double
     let height: Double
 
