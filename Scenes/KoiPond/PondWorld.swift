@@ -12,7 +12,7 @@ final class PondWorld {
     var pads: [LilyPad]
     var duckweed: [DuckweedLeaf]
     var seagrass: [SeagrassTuft]
-    let schools: [FishSchool]
+    private(set) var schools: [FishSchool]
     let frog: Frog
     private(set) var kois: [Koi] = []
     var food: [FoodPellet] = []
@@ -21,6 +21,10 @@ final class PondWorld {
     private(set) var goose: Goose?
     private(set) var ball: Ball?
     private(set) var greetingSpot: Point?
+    /// Where this pond opens into the ponds of neighbouring displays (`PondLinks`).
+    var openings: [Opening] = []
+    /// Called with a spot the user clicked, to call the koi of neighbouring ponds too.
+    var onCall: ((Point) -> Void)?
     var usualSpot: Point?
     /// Seconds the pond has been running.
     private(set) var clock = 0.0
@@ -44,7 +48,8 @@ final class PondWorld {
     }
 
     /// The school the "tiny fish" koi likes to herd.
-    var herdedSchool: FishSchool { schools[0] }
+    /// Nil once every school swam over to a neighbouring pond.
+    var herdedSchool: FishSchool? { schools.first }
 
     func update(dt: Double) {
         clock += dt
@@ -65,8 +70,8 @@ final class PondWorld {
     /// and the scene adds the sky.
     func draw(on canvas: Canvas, time: Double) {
         drawSeagrass(on: canvas)
-        schools.forEach { $0.draw(on: canvas) }
-        kois.forEach { $0.draw(on: canvas) }
+        schools.forEach { $0.draw(on: canvas, visibility: visibility(at: $0.center)) }
+        kois.forEach { $0.draw(on: canvas, visibility: visibility(at: $0.head)) }
         canvas.placeSurface()
         drawFood(on: canvas)
         drawDuckweed(on: canvas)
@@ -79,7 +84,10 @@ final class PondWorld {
 
     func touchWater(at point: Point) {
         addRipple(at: point)
-        if options.callOnClick { kois.forEach { $0.call(to: point) } }
+        if options.callOnClick {
+            kois.forEach { $0.call(to: point) }
+            onCall?(point)
+        }
     }
 
     func invite(_ visitor: Visitor) {
@@ -95,6 +103,22 @@ final class PondWorld {
             ball = nil
         }
     }
+
+    // Swimming over to a neighbouring pond (`PondLinks`).
+    func release(_ koi: Koi) { kois.removeAll { $0 === koi } }
+    func adopt(_ koi: Koi) {
+        kois.append(koi)
+        koi.lookAround()
+    }
+    func release(_ school: FishSchool) { schools.removeAll { $0 === school } }
+    func adopt(_ school: FishSchool) { schools.append(school) }
+    func release(_ goose: Goose) { if self.goose === goose { self.goose = nil } }
+    func adopt(_ goose: Goose) {
+        self.goose = goose
+        goose.arrive(in: size)
+    }
+    func release(_ ball: Ball) { if self.ball === ball { self.ball = nil } }
+    func adopt(_ ball: Ball) { self.ball = ball }
 
     /// The koi gather at a spot (the morning greeting) until `scatter()`.
     func gather(at spot: Point) {

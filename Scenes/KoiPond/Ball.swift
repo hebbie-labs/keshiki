@@ -33,7 +33,7 @@ final class Ball {
     func update(in world: PondWorld, dt: Double) {
         position.x += velocity.x * dt * 60
         position.y += velocity.y * dt * 60
-        bounceOffEdges(of: world.size)
+        bounceOffEdges(in: world)
         if let goose = world.goose, goose.position.distance(to: position) < 18 {
             velocity.x += (position.x - goose.position.x) * 0.02
             velocity.y += (position.y - goose.position.y) * 0.02
@@ -56,14 +56,21 @@ final class Ball {
         canvas.fillRect(Point(x: position.x - 4, y: position.y - 5), width: 2, height: 1, Color(0xffffff, alpha: 0.6))
     }
 
-    private func bounceOffEdges(of size: SceneSize) {
-        if position.x < 10 || position.x > size.width - 10 {
-            velocity.x *= -Self.bounce
-            position.x = clamp(position.x, 10, size.width - 10)
-        }
-        if position.y < 10 || position.y > size.height - 10 {
-            velocity.y *= -Self.bounce
-            position.y = clamp(position.y, 10, size.height - 10)
-        }
+    /// Off the edges, except where the pond opens to a neighbour: there it rolls on over.
+    private func bounceOffEdges(in world: PondWorld) {
+        let kept = world.clamped(position, margin: 10)
+        if kept.x != position.x { velocity.x *= -Self.bounce }
+        if kept.y != position.y { velocity.y *= -Self.bounce }
+        position = kept
+    }
+
+    func bounceBack(into size: SceneSize) {
+        position = size.clamped(position, margin: 10)
+        velocity = Point(x: -velocity.x * Self.bounce, y: -velocity.y * Self.bounce)
+    }
+
+    /// Moves the ball, e.g. into the coordinates of the pond it rolled over to.
+    func shift(by offset: Point) {
+        position = Point(x: position.x + offset.x, y: position.y + offset.y)
     }
 }

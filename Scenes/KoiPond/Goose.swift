@@ -31,6 +31,19 @@ final class Goose {
         staysFor = 0
     }
 
+    /// Moves the goose, e.g. into the coordinates of the pond it swam over to.
+    func shift(by offset: Point) {
+        position = Point(x: position.x + offset.x, y: position.y + offset.y)
+        destination = Point(x: destination.x + offset.x, y: destination.y + offset.y)
+    }
+
+    /// Swum over from a neighbouring pond: it stays a while here too.
+    func arrive(in size: SceneSize) {
+        isLeaving = false
+        staysFor = random(30...60)
+        destination = size.randomPoint(marginX: 100, marginY: 80)
+    }
+
     /// Returns false once the goose has swum off screen.
     func update(in world: PondWorld, dt: Double) -> Bool {
         staysFor -= dt

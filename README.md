@@ -25,7 +25,12 @@ its first launch.
 
 ## Everywhere
 
-- **Every display**, one scene for all of them.
+- **Every display**, one pond across all of them. Where two displays touch
+  (as arranged in *System Settings → Displays*), their ponds open into each
+  other: koi and the tiny fish dive under at the edge and come up on the
+  other display, the goose and the ball float over, and a click calls the
+  koi from next door too. Things are the same size on every display. While
+  any display plays, all ponds live on, so fish can visit a resting one.
 - **Dawn to night on your clock** (or synced with dark mode), fireflies after
   dark, rain on demand.
 - **Lock screen, animated (macOS 26+):** Keshiki brings a wallpaper extension.
@@ -126,7 +131,8 @@ wallpaper extension and the checks, so it must not depend on `App/`.
     are dropped after upload.
   - `Atmosphere` (time of day, rain, fireflies) and `KeshikiSettings`.
 - `Scenes/` — `SceneKind` lists every scene; each has its own folder.
-  - `KoiPond/` — `KoiPondScene` owns a `PondWorld` (`Koi`, `FishSchool`,
+  - `KoiPond/` — `PondLinks` joins the ponds of neighbouring displays.
+    `KoiPondScene` owns a `PondWorld` (`Koi`, `FishSchool`,
     `Frog`, `Goose`, `Ball`, `LilyPad`, duckweed, `Seagrass`, food, droplets
     in `Splashes`, and the ripples they make in the water, which push what's
     `Floating`), the painted `PondFloor` (backdrop), the `Reeds` at the edge,

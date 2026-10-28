@@ -49,6 +49,8 @@ final class Koi {
     private static let callRadius = 380.0
     private static let gooseFearRadius = 90.0
     private static let personalSpace = 18.0
+    /// How often a wandering koi heads over to the pond on a neighbouring display.
+    private static let visitChance = 0.08
     private static let heartSeconds = 2.2
     /// How often a swimming koi stirs the surface above its back, and how fast it must swim for that.
     private static let wakeSeconds = 0.3
@@ -92,7 +94,7 @@ final class Koi {
 
     func update(in world: PondWorld, dt: Double) {
         chooseTarget(in: world, dt: dt)
-        swim(towards: steeringPoint(in: world), in: world.size, mood: KoiMood(world.options.mood), dt: dt)
+        swim(towards: steeringPoint(in: world), in: world, mood: KoiMood(world.options.mood), dt: dt)
         interact(with: world)
         followHead()
         stirWater(in: world, dt: dt)
@@ -110,6 +112,15 @@ final class Koi {
 
     func lookAround() {
         wanderTimer = 0
+    }
+
+    /// Moves the whole koi, e.g. into the coordinates of the pond it swam over to.
+    func shift(by offset: Point) {
+        for index in body.indices {
+            body[index] = Point(x: body[index].x + offset.x, y: body[index].y + offset.y)
+            previousBody[index] = Point(x: previousBody[index].x + offset.x, y: previousBody[index].y + offset.y)
+        }
+        target = nil
     }
 
     // MARK: - Behaviour
@@ -135,6 +146,7 @@ final class Koi {
     private func wanderTarget(in world: PondWorld) -> KoiTarget {
         if let spot = world.usualSpot, chance(0.6) { return KoiTarget(point: spot.jittered(40, 30)) }
         if KoiMood(world.options.mood) == .playful, let ball = world.ball, chance(0.3) { return KoiTarget(point: ball.position) }
+        if chance(Self.visitChance), let beyond = world.spotBeyondOpening(forKoi: true) { return KoiTarget(point: beyond) }
         if chance(0.55), let favourite = world.target(for: favourite) { return favourite }
         return KoiTarget(point: world.size.randomPoint(marginX: 40))
     }
@@ -145,7 +157,7 @@ final class Koi {
             excitement = 0.8
             return Point(x: head.x + (head.x - goose.position.x) * 2, y: head.y + (head.y - goose.position.y) * 2)
         }
-        var point = world.size.clamped(target?.point ?? head, margin: 25)
+        var point = world.clamped(target?.point ?? head, margin: 25)
         for other in world.kois where other !== self && other.head.distance(to: head) < Self.personalSpace {
             point.x += head.x - other.head.x
             point.y += head.y - other.head.y
@@ -153,7 +165,7 @@ final class Koi {
         return point
     }
 
-    private func swim(towards point: Point, in pond: SceneSize, mood: KoiMood, dt: Double) {
+    private func swim(towards point: Point, in world: PondWorld, mood: KoiMood, dt: Double) {
         let maxTurn = turnRate * mood.turn
         let turn = clamp(angleDifference(from: heading, to: head.heading(to: point)), -maxTurn, maxTurn) * (1 + excitement) * dt * 60
         heading += turn
@@ -162,7 +174,7 @@ final class Koi {
         let topSpeed = speed * mood.speed * (1 + excitement * 1.4) * slowDownNearTarget
         velocity += (topSpeed - velocity) * 0.04
         tailPhase += dt * (3 + velocity * 4)
-        body[0] = pond.clamped(head.moved(by: velocity * dt * 60, heading: heading), margin: 5)
+        body[0] = world.clamped(head.moved(by: velocity * dt * 60, heading: heading), margin: 5)
     }
 
     private func interact(with world: PondWorld) {
@@ -237,7 +249,10 @@ final class Koi {
 
     private var outline: [Segment] = []
 
-    func draw(on canvas: Canvas) {
+    /// `visibility` below 1 while it dives under at an opening to the next pond.
+    func draw(on canvas: Canvas, visibility: Double = 1) {
+        guard visibility > 0 else { return }
+        let canvas = visibility < 1 ? FadedCanvas(canvas, amount: visibility) : canvas
         updateOutline()
         drawFins(outline, on: canvas, color: Self.fin)
         drawBody(outline, on: canvas, color: Self.outline, widen: 1)

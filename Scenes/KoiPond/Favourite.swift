@@ -9,7 +9,7 @@ extension PondWorld {
     func target(for favourite: Favourite) -> KoiTarget? {
         switch favourite {
         case .tinyFish:
-            return tracking { [unowned self] in herdedSchool.center }
+            return tracking { [unowned self] in herdedSchool?.center }
         case .duckweed:
             return randomGrowingLeaf().map { KoiTarget(point: $0, isFavourite: true) }
         case .lotusShade:

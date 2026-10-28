@@ -2,7 +2,6 @@ import Foundation
 
 /// The koi pond sized for one display: the pond's world and its painted floor.
 final class KoiPondScene: LivingScene {
-    static let designWidth = 960.0
     let pixelScale = 1.5
 
     let world: PondWorld
@@ -15,8 +14,8 @@ final class KoiPondScene: LivingScene {
     /// Called with the normalised spot whenever food is dropped, so the koi can learn your routine.
     var onFeed: ((Point) -> Void)?
 
-    init(aspectRatio: Double, settings: KeshikiSettings, options: KoiPondSettings = KoiPondSettings()) {
-        let size = SceneSize(width: Self.designWidth, height: (Self.designWidth / max(aspectRatio, 0.1)).rounded())
+    init(aspectRatio: Double, settings: KeshikiSettings, options: KoiPondSettings = KoiPondSettings(), width: Double = 960) {
+        let size = SceneSize(width: width.rounded(), height: (width / max(aspectRatio, 0.1)).rounded())
         self.settings = settings
         world = PondWorld(size: size, options: options)
         world.raining = settings.rain

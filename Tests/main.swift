@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 // Runnable checks for the logic that's easy to get subtly wrong: `make test`.
@@ -84,6 +85,23 @@ check(thrown == 10 && splashWorld.droplets.isEmpty, "a splash throws droplets th
 let padCanvas = DrawList(width: 1440, height: 900, scale: 1.5)
 for _ in 0..<40 { LilyPad.scatter(in: SceneSize(width: 960, height: 600)).forEach { $0.draw(on: padCanvas) } }
 check(padCanvas.primitives.allSatisfy { $0.bounds.x < $0.bounds.z && $0.bounds.y < $0.bounds.w }, "lily pads of any shape draw clean rows, slit and all")
+
+// Ponds across displays: two side by side (y up, like screen frames), one a little apart.
+let left = PondWorld(size: SceneSize(width: 960, height: 600), options: KoiPondSettings())
+let right = PondWorld(size: SceneSize(width: 960, height: 600), options: KoiPondSettings())
+let apart = PondWorld(size: SceneSize(width: 960, height: 600), options: KoiPondSettings())
+let links = PondLinks([(left, CGRect(x: 0, y: 0, width: 1000, height: 625)), (right, CGRect(x: 1000, y: 0, width: 1000, height: 625)),
+                       (apart, CGRect(x: 0, y: 700, width: 1000, height: 625))], unitsPerPoint: 0.96)
+check(left.openings.count == 1 && left.openings[0].edge == .right && abs(left.openings[0].span.upperBound - 600) < 0.01
+      && right.openings.first?.edge == .left && apart.openings.isEmpty, "displays that touch open into each other, a gap stays a wall")
+let traveller = left.kois[0]
+traveller.shift(by: Point(x: 965 - traveller.head.x, y: 300 - traveller.head.y))
+links.exchange()
+check(left.kois.count == 7 && right.kois.count == 9 && right.kois.contains { $0 === traveller } && near(traveller.head, Point(x: 5, y: 300)),
+      "a koi that swims out on one display comes in on the next, at the same height")
+check(left.visibility(at: Point(x: 950, y: 300)) < 0.5 && left.visibility(at: Point(x: 10, y: 300)) == 1,
+      "fish dive under at an opening, not at a wall")
+
 let reeds = Reeds.make(size: SceneSize(width: 960, height: 600), scale: 1.5)
 check(!reeds.sprites.isEmpty && reeds.sprites.allSatisfy { $0.root.y < 600 * 0.8 && $0.x + $0.width <= reeds.sheet.width },
       "reeds stand along the far and side edges, never in front, each cut from the sheet")
