@@ -6,7 +6,7 @@ struct FoodPellet {
     var secondsLeft: Double
 }
 
-extension World {
+extension PondWorld {
     private static let pelletsPerDrop = 8
     private static let secondsAfloat = 30.0
     private static let pelletColor = Color(0xc98a3e)

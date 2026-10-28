@@ -7,7 +7,7 @@ enum PondFloor {
     private static let depthLevels = 7
     private static let plantClusters = 42
 
-    static func paint(size: PondSize, waterName: String) -> PixelBuffer {
+    static func paint(size: SceneSize, waterName: String) -> PixelBuffer {
         let palette = WaterPalette.named(waterName)
         let canvas = PixelBuffer(width: Int(size.width), height: Int(size.height), color: palette.floor)
         paintSilt(on: canvas, palette: palette)
@@ -19,7 +19,7 @@ enum PondFloor {
     }
 
     /// 0 at the shallow edges, 1 in the deep middle, with a little unevenness.
-    static func depth(x: Double, y: Double, size: PondSize) -> Double {
+    static func depth(x: Double, y: Double, size: SceneSize) -> Double {
         let edgeDistance = min(x, size.width - x, y, size.height - y)
         let bowl = clamp(edgeDistance / (size.height * 0.42), 0, 1)
         let unevenness = (sin(x * 0.021 + y * 0.013) + sin(x * 0.008 - y * 0.017)) * 0.08
@@ -38,7 +38,7 @@ enum PondFloor {
         }
     }
 
-    private static func paintPebbles(on canvas: PixelBuffer, size: PondSize, palette: WaterPalette) {
+    private static func paintPebbles(on canvas: PixelBuffer, size: SceneSize, palette: WaterPalette) {
         for _ in 0..<900 {
             let spot = chance(0.6) ? plantSpot(in: size) : size.randomPoint(marginX: 0)
             canvas.fillRect(spot, width: Int.random(in: 1...3), height: Int.random(in: 1...2), palette.pebbles.randomElement()!.opacity(random(0.4...0.9)))
@@ -46,7 +46,7 @@ enum PondFloor {
     }
 
     /// Mostly along the shallow edges, where the light reaches the floor.
-    private static func plantSpot(in size: PondSize) -> Point {
+    private static func plantSpot(in size: SceneSize) -> Point {
         guard chance(0.8) else { return size.randomPoint(marginX: 60) }
         let band = random(0...110)
         switch Int.random(in: 0..<4) {
@@ -82,7 +82,7 @@ enum PondFloor {
         }
     }
 
-    private static func paintWaterColumn(on canvas: PixelBuffer, size: PondSize, palette: WaterPalette) {
+    private static func paintWaterColumn(on canvas: PixelBuffer, size: SceneSize, palette: WaterPalette) {
         for y in 0..<canvas.height {
             for x in 0..<canvas.width {
                 let depth = Dither.quantize(self.depth(x: Double(x), y: Double(y), size: size), levels: depthLevels, x: x, y: y)

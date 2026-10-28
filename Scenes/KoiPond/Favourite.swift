@@ -4,7 +4,7 @@ enum Favourite: CaseIterable {
     case tinyFish, duckweed, lotusShade, frog, ball, goose
 }
 
-extension World {
+extension PondWorld {
     /// Where a koi goes to enjoy its favourite thing, or nil if that thing isn't around.
     func target(for favourite: Favourite) -> KoiTarget? {
         switch favourite {

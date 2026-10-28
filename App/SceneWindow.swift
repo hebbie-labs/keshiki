@@ -1,16 +1,16 @@
 import AppKit
 
-/// A borderless window showing one pond on one display, normally tucked behind the desktop icons.
-final class PondWindow: NSWindow {
-    let scene: PondScene
-    private let pondView: PondView
+/// A borderless window showing one scene on one display, normally tucked behind the desktop icons.
+final class SceneWindow: NSWindow {
+    let scene: LivingScene
+    private let sceneView: SceneView
 
-    init(screen: NSScreen, settings: PondSettings) {
-        scene = PondScene(aspectRatio: screen.frame.width / screen.frame.height, settings: settings)
-        pondView = PondView(frame: NSRect(origin: .zero, size: screen.frame.size))
+    init(screen: NSScreen, scene: LivingScene) {
+        self.scene = scene
+        sceneView = SceneView(frame: NSRect(origin: .zero, size: screen.frame.size))
         super.init(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
         isReleasedWhenClosed = false
-        contentView = pondView
+        contentView = sceneView
         setFrame(screen.frame, display: false)
         sitBehindDesktopIcons()
         orderFront(nil)
@@ -38,11 +38,11 @@ final class PondWindow: NSWindow {
     }
 
     func drawNextFrame() {
-        pondView.show(scene.render())
+        sceneView.show(scene.render())
     }
 
-    func greet(at spot: Point) {
-        pondView.greet(at: spot)
+    func showCaption(_ text: String, at spot: Point) {
+        sceneView.showCaption(text, at: spot)
     }
 
     /// A screen point (origin bottom-left) as 0...1 across this window (origin top-left).

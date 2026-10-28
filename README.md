@@ -1,27 +1,42 @@
-# Wallpapers
+# Keshiki
 
-**a living koi pond for your desktop**
+**living wallpapers for your Mac**
 
-A pixel-art koi pond that runs as a live wallpaper on macOS. The koi swim
-behind your desktop icons, come over when you click the water and learn when
-you usually feed them.
+Keshiki (景色, "scenery") puts a living pixel-art scene behind your desktop
+icons. The first scene is a koi pond: the koi swim on their own, come over when
+you click the water and learn when you usually feed them. More scenes will follow.
 
 ## Install
 
-1. Download `Wallpapers-<version>.dmg` from the
-   [latest release](https://github.com/hebbie-labs/wallpapers/releases/latest).
-2. Open it and drag **Wallpapers** into **Applications**.
+1. Download `Keshiki-<version>.dmg` from the
+   [latest release](https://github.com/hebbie-labs/keshiki/releases/latest).
+2. Open it and drag **Keshiki** into **Applications**.
 3. The app is not notarized, so macOS blocks the first launch. Either open
    *System Settings → Privacy & Security* and click **Open Anyway**, or run:
 
    ```sh
-   xattr -dr com.apple.quarantine /Applications/Wallpapers.app
+   xattr -dr com.apple.quarantine /Applications/Keshiki.app
    ```
 
-Requires macOS 14 or later on Apple Silicon. Wallpapers lives in the menu bar
-(鯉); add it to *Login Items* to start it automatically.
+Requires macOS 14 or later on Apple Silicon. Keshiki lives in the menu bar
+(鯉); add it to *Login Items* to start it automatically. Coming from
+*Wallpapers* 1.x? Keshiki picks up your settings and what the koi learned on
+its first launch.
 
-## What's in the pond
+## Everywhere
+
+- **Every display**, one scene for all of them.
+- **Dawn to night on your clock** (or synced with dark mode), fireflies after
+  dark, rain on demand.
+- **Lock screen:** a still of the scene becomes the desktop picture, which the
+  lock screen shows; it follows the time of day and your own picture comes back
+  when you quit. *Install Screensaver…* adds the animated scene as a system
+  screensaver too.
+- **Light on memory:** drawn natively into a small pixel buffer, about 40 MB
+  for three displays. Scenes hidden behind windows aren't drawn, and it can
+  rest on battery.
+
+## Koi Pond
 
 - **Eight koi with a life of their own.** Each has a favourite: herding the
   tiny fish, grazing duckweed, lotus shade, the frog, the ball or the goose.
@@ -34,48 +49,46 @@ Requires macOS 14 or later on Apple Silicon. Wallpapers lives in the menu bar
 - **A good-morning greeting.** The first time you see the pond each day they
   gather at your spot to say hello.
 - **Click the water** and they swim over. **⌥-click** drops food.
-- **Dawn to night on your clock** (or synced with dark mode), fireflies after
-  dark, rain on demand, and a *Deep Clear* water theme.
-- **Visitors:** invite the goose or drop a temari ball.
-- **Lock screen:** a still of the pond becomes the desktop picture, which the
-  lock screen shows; it follows the time of day and your own picture comes back
-  when you quit. *Install Screensaver…* adds the animated pond as a system
-  screensaver too.
-- **Light on memory:** drawn natively into a small pixel buffer, about 40 MB
-  for three displays. Ponds hidden behind windows aren't drawn at all, and it
-  can rest on battery.
+- **Calm or playful** mood, a *Deep Clear* water theme, and visitors: invite
+  the goose or drop a temari ball.
 
 ## Development
 
 ```sh
-make run       # build build/Wallpapers.app (with the screensaver inside) and launch it
-make dmg       # build build/Wallpapers-<version>.dmg
-make test      # build and run the engine checks
+make run       # build build/Keshiki.app (with the screensaver inside) and launch it
+make dmg       # build build/Keshiki-<version>.dmg
+make test      # build and run the checks
 ```
 
 The version comes from `CFBundleShortVersionString` in `App/Info.plist`.
 
 ## Structure
 
-- `Engine/` — the pond, shared by the app and the screensaver. A 960 px wide
-  `PixelBuffer` is drawn every frame and scaled up with nearest-neighbour.
-  - `PondScene` owns one pond: its `World` and the painted floor.
-  - `World` holds the residents (`Koi`, `FishSchool`, `Frog`, `Goose`, `Ball`,
-    `LilyPad`, duckweed, food, ripples) and the draw order.
-  - `PondFloor` paints the still parts once (floor, plants, water depth,
-    light rays); `Caustics` precomputes a seamless looping light net.
-  - `PondMemory` is the learning; `Sky` the time of day and fireflies.
+- `Core/` — shared by every scene: `LivingScene` (what a scene must do),
+  `PixelBuffer` (drawn every frame, scaled up with nearest-neighbour),
+  `Atmosphere` (time of day, rain, fireflies) and `KeshikiSettings`.
+- `Scenes/` — `SceneKind` lists every scene; each has its own folder.
+  - `KoiPond/` — `KoiPondScene` owns a `PondWorld` (`Koi`, `FishSchool`,
+    `Frog`, `Goose`, `Ball`, `LilyPad`, duckweed, food, ripples), the painted
+    `PondFloor`, `Caustics`, the learning in `KoiMemory` and `KoiPondSettings`.
 - `App/` — the menu bar app (AppKit, no Xcode project needed).
-  - `PondController` wires everything and runs the 30 fps frame timer.
-  - `PondDisplays` / `PondWindow` / `PondView` keep one borderless window per
-    display at desktop level.
+  - `KeshikiController` wires everything and runs the 30 fps frame timer.
+  - `SceneDisplays` / `SceneWindow` / `SceneView` keep one borderless window
+    per display at desktop level.
+  - `SceneControls` is what a scene adds to the app: `KoiPondControls` holds
+    the koi menu section, feeding memory and the morning greeting.
   - `DesktopHitTest` decides whether a click landed on the bare desktop; the
     desktop belongs to Finder, so clicks are watched globally and forwarded.
-  - `LockScreenWallpaper` swaps the desktop pictures for pond stills and back.
-  - `StatusMenu` / `MenuEntry` build the menu from the settings.
-- `Saver/` — `PondSaverView`, the engine as a `.saver` bundle.
-- `Tests/` — engine checks (learning, time of day, rendering).
+  - `LockScreenWallpaper` swaps the desktop pictures for scene stills and back.
+  - `StatusMenu` / `MenuEntry` build the menu; `SettingsStore` persists
+    settings and migrates from Wallpapers 1.x.
+- `Saver/` — `KeshikiSaverView`, the scenes as a `.saver` bundle.
+- `Tests/` — runnable checks (learning, time of day, settings migration, drawing).
 - `Assets/` — app icon.
+
+To add a scene: a folder under `Scenes/` with a class conforming to
+`LivingScene`, a case in `SceneKind`, and — if it has its own options — a
+`SceneControls` in `App/`.
 
 Inspired by [Nagomi](https://nagomi.m4yank.com/). All code and pixel art
 here is original and drawn procedurally.

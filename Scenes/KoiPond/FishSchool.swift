@@ -66,7 +66,7 @@ final class FishSchool {
     private static let shadow = Color(0x0b2e26, alpha: 0.2)
     private static let eye = Color(0x161616)
 
-    init(species: Species, in size: PondSize) {
+    init(species: Species, in size: SceneSize) {
         self.species = species
         center = size.randomPoint(marginX: 100, marginY: 80)
         destination = center
@@ -77,7 +77,7 @@ final class FishSchool {
         }
     }
 
-    func update(in world: World, dt: Double) {
+    func update(in world: PondWorld, dt: Double) {
         wander(in: world.size, dt: dt)
         for index in fish.indices { swim(index, in: world, dt: dt) }
     }
@@ -89,7 +89,7 @@ final class FishSchool {
     // MARK: - Movement
 
     /// The school as a whole drifts slowly from one spot to the next.
-    private func wander(in size: PondSize, dt: Double) {
+    private func wander(in size: SceneSize, dt: Double) {
         if destination.distance(to: center) < 12 { destination = size.randomPoint(marginX: 70, marginY: 60) }
         let step = min(1, 0.006 * dt * 60)
         center.x += (destination.x - center.x) * step * 0.4
@@ -97,7 +97,7 @@ final class FishSchool {
         heading += angleDifference(from: heading, to: center.heading(to: destination)) * 0.02
     }
 
-    private func swim(_ index: Int, in world: World, dt: Double) {
+    private func swim(_ index: Int, in world: PondWorld, dt: Double) {
         var member = fish[index]
         let threat = nearestKoi(to: member.position, in: world)
         let wanted = threat.map { awayFrom($0, member) } ?? towardsSlot(member, index: index)
@@ -145,7 +145,7 @@ final class FishSchool {
         (threat.heading(to: member.position), 2.8)
     }
 
-    private func nearestKoi(to point: Point, in world: World) -> Point? {
+    private func nearestKoi(to point: Point, in world: PondWorld) -> Point? {
         world.kois.map(\.head).filter { $0.distance(to: point) < Self.scareRadius }.min { $0.distance(to: point) < $1.distance(to: point) }
     }
 

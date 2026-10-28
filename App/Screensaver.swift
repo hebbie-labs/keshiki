@@ -1,17 +1,17 @@
 import AppKit
 
-/// Lifts the ponds above everything until the next key press, click or real mouse move.
+/// Lifts the scenes above everything until the next key press, click or real mouse move.
 final class Screensaver {
     private(set) var isRunning = false
     private var monitors: [Any] = []
     private var startingMousePosition = NSPoint.zero
-    private var windows: [PondWindow] = []
+    private var windows: [SceneWindow] = []
 
     private let settleDelay: TimeInterval = 1
     private let mouseMoveTolerance: CGFloat = 8
     private let wakeEvents: NSEvent.EventTypeMask = [.keyDown, .leftMouseDown, .rightMouseDown, .mouseMoved, .scrollWheel]
 
-    func start(on windows: [PondWindow]) {
+    func start(on windows: [SceneWindow]) {
         guard !isRunning else { return }
         isRunning = true
         self.windows = windows

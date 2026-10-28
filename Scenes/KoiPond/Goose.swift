@@ -15,7 +15,7 @@ final class Goose {
     private static let paddleEverySeconds = 0.6
     private static let white = Color(0xf6f4ee)
 
-    init(in size: PondSize) {
+    init(in size: SceneSize) {
         position = Goose.pointOffEdge(of: size)
         heading = position.heading(to: size.center)
         destination = size.randomPoint(marginX: 100, marginY: 80)
@@ -29,7 +29,7 @@ final class Goose {
     }
 
     /// Returns false once the goose has swum off screen.
-    func update(in world: World, dt: Double) -> Bool {
+    func update(in world: PondWorld, dt: Double) -> Bool {
         staysFor -= dt
         chooseDestination(in: world.size)
         heading += clamp(angleDifference(from: heading, to: position.heading(to: destination)), -Self.turnRate, Self.turnRate) * dt * 60
@@ -44,7 +44,7 @@ final class Goose {
         drawNeckAndHead(on: canvas, along: along, bend: sin(time * 1.3) * 0.25)
     }
 
-    private func chooseDestination(in size: PondSize) {
+    private func chooseDestination(in size: SceneSize) {
         if staysFor <= 0 && !isLeaving {
             isLeaving = true
             destination = Goose.pointOffEdge(of: size)
@@ -52,7 +52,7 @@ final class Goose {
         if !isLeaving && position.distance(to: destination) < 15 { destination = size.randomPoint(marginX: 100, marginY: 80) }
     }
 
-    private func paddle(in world: World, dt: Double) {
+    private func paddle(in world: PondWorld, dt: Double) {
         paddleTimer += dt
         guard paddleTimer >= Self.paddleEverySeconds else { return }
         paddleTimer = 0
@@ -86,7 +86,7 @@ final class Goose {
         for side in [-1.0, 1.0] { canvas.fillRect(point.moved(by: 4, heading: neckHeading + side * 1.3), width: 2, height: 2, Color(0x111111)) }
     }
 
-    private static func pointOffEdge(of size: PondSize) -> Point {
+    private static func pointOffEdge(of size: SceneSize) -> Point {
         [Point(x: -30, y: random(60...(size.height - 60))),
          Point(x: size.width + 30, y: random(60...(size.height - 60))),
          Point(x: random(60...(size.width - 60)), y: -30),

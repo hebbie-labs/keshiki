@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// An opaque 32-bit image the pond is drawn into, pixel by pixel, then shown scaled up with nearest-neighbour.
+/// An opaque 32-bit image a scene is drawn into, pixel by pixel, then shown scaled up with nearest-neighbour.
 final class PixelBuffer {
     let width: Int
     let height: Int
@@ -29,8 +29,12 @@ final class PixelBuffer {
 
     func fillRect(_ origin: Point, width rectWidth: Int, height rectHeight: Int, _ color: Color) {
         let left = Int(origin.x.rounded()), top = Int(origin.y.rounded())
-        for y in max(0, top)..<min(height, top + rectHeight) {
-            for x in max(0, left)..<min(width, left + rectWidth) { plot(x, y, color) }
+        let minX = max(0, left), maxX = min(width, left + rectWidth)
+        let minY = max(0, top), maxY = min(height, top + rectHeight)
+        // Entirely off the canvas, e.g. a heart above a koi at the top edge.
+        guard minX < maxX, minY < maxY else { return }
+        for y in minY..<maxY {
+            for x in minX..<maxX { plot(x, y, color) }
         }
     }
 

@@ -10,14 +10,14 @@ struct DuckweedLeaf {
 }
 
 /// Little floating patches the koi graze; eaten leaves grow back.
-extension World {
+extension PondWorld {
     private static let patchCount = 4
     private static let leavesPerPatch = 70
     private static let patchRadius = 30.0
     private static let regrowSeconds = 40.0...120.0
     private static let duckweedGreens = [Color(0x8cc152), Color(0xa0d468), Color(0x7cb342)]
 
-    static func scatterDuckweed(in size: PondSize) -> [DuckweedLeaf] {
+    static func scatterDuckweed(in size: SceneSize) -> [DuckweedLeaf] {
         (0..<patchCount).flatMap { _ -> [DuckweedLeaf] in
             let center = size.randomPoint(marginX: 80, marginY: 60)
             return (0..<leavesPerPatch).map { _ in

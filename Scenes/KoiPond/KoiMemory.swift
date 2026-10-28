@@ -1,7 +1,7 @@
 import Foundation
 
 /// What the koi remember: where and when you feed them, and when they last said good morning.
-struct PondMemory: Codable {
+struct KoiMemory: Codable {
     struct Feeding: Codable {
         /// Normalised (0...1) so it survives different screen sizes.
         let x: Double

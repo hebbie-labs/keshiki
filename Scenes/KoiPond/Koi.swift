@@ -73,7 +73,7 @@ final class Koi {
 
     var head: Point { body[0] }
 
-    init(index: Int, in pond: PondSize) {
+    init(index: Int, in pond: SceneSize) {
         variety = Self.varieties[index % Self.varieties.count]
         favourite = Favourite.allCases[index % Favourite.allCases.count]
         patches = Self.paintPatches(for: variety)
@@ -81,9 +81,9 @@ final class Koi {
         body = (0..<Self.segments).map { Point(x: start.x - Double($0) * Self.segmentLength, y: start.y) }
     }
 
-    func update(in world: World, dt: Double) {
+    func update(in world: PondWorld, dt: Double) {
         chooseTarget(in: world, dt: dt)
-        swim(towards: steeringPoint(in: world), in: world.size, mood: KoiMood(world.settings.mood), dt: dt)
+        swim(towards: steeringPoint(in: world), in: world.size, mood: KoiMood(world.options.mood), dt: dt)
         interact(with: world)
         followHead()
         heartTimer = max(0, heartTimer - dt)
@@ -104,7 +104,7 @@ final class Koi {
 
     // MARK: - Behaviour
 
-    private func chooseTarget(in world: World, dt: Double) {
+    private func chooseTarget(in world: PondWorld, dt: Double) {
         wanderTimer -= dt
         excitement = max(0, excitement - dt * 0.2)
         if let food = world.nearestFood(to: head, within: Self.foodSight) {
@@ -116,21 +116,21 @@ final class Koi {
             wanderTimer = random(2...4)
         } else if target == nil || wanderTimer <= 0 || target!.point.distance(to: head) < 10 {
             target = wanderTarget(in: world)
-            wanderTimer = random(KoiMood(world.settings.mood).wanderSeconds)
+            wanderTimer = random(KoiMood(world.options.mood).wanderSeconds)
         } else if let position = target?.track?() {
             target?.point = position
         }
     }
 
-    private func wanderTarget(in world: World) -> KoiTarget {
+    private func wanderTarget(in world: PondWorld) -> KoiTarget {
         if let spot = world.usualSpot, chance(0.6) { return KoiTarget(point: spot.jittered(40, 30)) }
-        if KoiMood(world.settings.mood) == .playful, let ball = world.ball, chance(0.3) { return KoiTarget(point: ball.position) }
+        if KoiMood(world.options.mood) == .playful, let ball = world.ball, chance(0.3) { return KoiTarget(point: ball.position) }
         if chance(0.55), let favourite = world.target(for: favourite) { return favourite }
         return KoiTarget(point: world.size.randomPoint(marginX: 40))
     }
 
     /// The target, adjusted for fear of the goose and a little personal space.
-    private func steeringPoint(in world: World) -> Point {
+    private func steeringPoint(in world: PondWorld) -> Point {
         if let goose = world.goose, favourite != .goose, goose.position.distance(to: head) < Self.gooseFearRadius {
             excitement = 0.8
             return Point(x: head.x + (head.x - goose.position.x) * 2, y: head.y + (head.y - goose.position.y) * 2)
@@ -143,7 +143,7 @@ final class Koi {
         return point
     }
 
-    private func swim(towards point: Point, in pond: PondSize, mood: KoiMood, dt: Double) {
+    private func swim(towards point: Point, in pond: SceneSize, mood: KoiMood, dt: Double) {
         let maxTurn = turnRate * mood.turn
         heading += clamp(angleDifference(from: heading, to: head.heading(to: point)), -maxTurn, maxTurn) * (1 + excitement) * dt * 60
         let slowDownNearTarget = min(1, point.distance(to: head) / 60 + 0.25)
@@ -153,7 +153,7 @@ final class Koi {
         body[0] = pond.clamped(head.moved(by: velocity * dt * 60, heading: heading), margin: 5)
     }
 
-    private func interact(with world: World) {
+    private func interact(with world: PondWorld) {
         world.eatFood(near: head, reach: 7 * size)
         let grazed = world.grazeDuckweed(near: head, reach: 6 * size)
         let playedWithBall = world.ball?.nudge(by: self) ?? false

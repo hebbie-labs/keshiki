@@ -3,13 +3,13 @@ import ImageIO
 import UniformTypeIdentifiers
 
 /// Apps can't draw on the lock screen, but the lock screen shows the desktop picture.
-/// So a still of each pond becomes the desktop picture, and the user's own pictures come back on quit.
+/// So a still of each scene becomes the desktop picture, and the user's own pictures come back on quit.
 final class LockScreenWallpaper {
-    private static let originalsKey = "originalDesktopPictures"
+    private static let originalsKey = SettingsStore.originalDesktopPicturesKey
     private let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("Wallpapers/LockScreen", isDirectory: true)
+        .appendingPathComponent("Keshiki/LockScreen", isDirectory: true)
 
-    func show(_ windows: [PondWindow]) {
+    func show(_ windows: [SceneWindow]) {
         rememberOriginals()
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         // A new file name every time; macOS caches pictures by URL.
@@ -17,7 +17,7 @@ final class LockScreenWallpaper {
         var current: Set<URL> = []
         for window in windows {
             guard let screen = window.screen, let image = window.scene.render(), let id = screen.displayID else { continue }
-            let url = folder.appendingPathComponent("pond-\(id)-\(stamp).png")
+            let url = folder.appendingPathComponent("scene-\(id)-\(stamp).png")
             guard write(image, scaledToFill: screen, to: url) else { continue }
             try? NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
             current.insert(url)

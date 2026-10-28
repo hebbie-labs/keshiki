@@ -3,21 +3,21 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>Wallpapers</string>
+	<string>Keshiki</string>
 	<key>CFBundleExecutable</key>
-	<string>Wallpapers</string>
+	<string>Keshiki</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.hebbie-labs.wallpapers</string>
+	<string>com.hebbie-labs.keshiki</string>
 	<key>CFBundleName</key>
-	<string>Wallpapers</string>
+	<string>Keshiki</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.1.0</string>
+	<string>2.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>2</string>
+	<string>3</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
