@@ -18,6 +18,18 @@ final class LockScreenWallpaper {
         return data.range(of: Data(wallpaperExtension.utf8)) != nil
     }
 
+    /// Replacing the extension (an app update) kills its process, and the WallpaperAgent keeps talking to the dead one:
+    /// the lock screen stays empty until the agent restarts. So after each new extension build the agent restarts once.
+    static func restartAgentIfExtensionChanged() {
+        let binary = Bundle.main.bundleURL.appendingPathComponent("Contents/Extensions/KeshikiWallpaper.appex/Contents/MacOS/KeshikiWallpaper")
+        guard let built = (try? binary.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate?.timeIntervalSince1970,
+              UserDefaults.standard.double(forKey: extensionBuildKey) != built else { return }
+        UserDefaults.standard.set(built, forKey: extensionBuildKey)
+        guard extensionIsPicked else { return }
+        _ = try? Process.run(URL(fileURLWithPath: "/usr/bin/killall"), arguments: ["WallpaperAgent"])
+    }
+    private static let extensionBuildKey = "wallpaperExtensionBuild"
+
     func show(_ windows: [SceneWindow]) {
         guard !Self.extensionIsPicked else { return }
         rememberOriginals()
