@@ -22,6 +22,7 @@ final class KeshikiController: NSObject, NSApplicationDelegate {
     private static let lockScreenRefreshInterval: TimeInterval = 15 * 60
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        LockScreenWallpaper.restartAgentIfExtensionChanged()
         showChosenScene()
         statusMenu = StatusMenu(controller: self)
         observeSystem()
