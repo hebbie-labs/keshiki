@@ -2,7 +2,9 @@ import Foundation
 
 /// The koi pond sized for one display: the pond's world and its painted floor.
 final class KoiPondScene: LivingScene {
-    let pixelScale = 1.5
+    /// Two device pixels per design unit: finer than the pixel art needs, still light on the GPU. On battery 1.5,
+    /// which costs about a third less. The display scales the frame up smoothly to its own resolution.
+    let pixelScale = SystemConditions.isOnBattery ? 1.5 : 2.0
 
     let world: PondWorld
     private let atmosphere = Atmosphere()

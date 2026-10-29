@@ -1,4 +1,5 @@
 import AppKit
+import IOKit.ps
 
 /// Wires the scenes, the menu bar, desktop clicks, the screensaver and the lock screen together.
 final class KeshikiController: NSObject, NSApplicationDelegate {
@@ -110,6 +111,19 @@ final class KeshikiController: NSObject, NSApplicationDelegate {
             refreshLockScreen()
         }
         NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [unowned self] event in forwardDesktopClick(event) }
+        // Plugging in or out: rest or play on at once, and render finer or lighter.
+        let source = IOPSNotificationCreateRunLoopSource({ context in
+            guard let context else { return }
+            let controller = Unmanaged<KeshikiController>.fromOpaque(context).takeUnretainedValue()
+            DispatchQueue.main.async { controller.powerSourceChanged() }
+        }, Unmanaged.passUnretained(self).toOpaque()).takeRetainedValue()
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
+    }
+
+    /// The displays rebuild their scenes only if the switch changes how finely they render.
+    private func powerSourceChanged() {
+        onBattery = SystemConditions.isOnBattery
+        showChosenScene()
     }
 
     private func refreshLockScreen() {
