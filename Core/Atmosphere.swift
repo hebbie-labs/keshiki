@@ -31,7 +31,8 @@ enum TimeOfDay: String {
     var hasFireflies: Bool { self == .dusk || self == .night }
 }
 
-/// The light over any scene: the time-of-day tint, a grey veil when it rains, and fireflies after dark.
+/// The light over any scene: the time-of-day tint, a grey veil when it rains, and fireflies after dark, which
+/// show again, fainter, mirrored in the water.
 final class Atmosphere {
     private struct Firefly {
         var position: Point
@@ -43,6 +44,8 @@ final class Atmosphere {
 
     private static let fireflyCount = 24
     private static let rainDimming = Color(0x283c50, alpha: 0.16)
+    /// Fireflies hover a little above the water; their mirror image shows this far below them on screen.
+    private static let reflectionOffset = 9.0
 
     func draw(on canvas: Canvas, size: SceneSize, timeOfDay: TimeOfDay, raining: Bool, time: Double) {
         canvas.cover(with: timeOfDay.tint)
@@ -60,6 +63,9 @@ final class Atmosphere {
             fly.position.y = (fly.position.y + fly.drift.y + sin(time + fly.phase) * 0.15 + size.height).truncatingRemainder(dividingBy: size.height)
             fireflies[index] = fly
             let glow = (sin(time * 2 + fly.phase) + 1) / 2
+            let mirrored = Point(x: fly.position.x, y: fly.position.y + Self.reflectionOffset)
+            canvas.disc(mirrored, radius: 2, Color(0xf0ff8c, alpha: glow * 0.1))
+            canvas.plot(mirrored, Color(0xfaffaa, alpha: glow * 0.45))
             canvas.disc(fly.position, radius: 3, Color(0xf0ff8c, alpha: glow * 0.18))
             canvas.fillRect(fly.position, width: 2, height: 2, Color(0xfaffaa, alpha: glow))
         }

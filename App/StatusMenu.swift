@@ -40,9 +40,11 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     }
 
     private func appItems() -> [NSMenuItem] {
-        [
-            binding.toggle("Rest on Battery", \.restOnBattery),
-            binding.toggle("Show on Lock Screen", \.showOnLockScreen),
+        var lockScreen = [binding.toggle("Show on Lock Screen", \.showOnLockScreen)]
+        if #available(macOS 26, *) {
+            lockScreen.append(MenuEntry("Animate Lock Screen…") { [unowned controller] in controller.openWallpaperSettings() })
+        }
+        return [binding.toggle("Rest on Battery", \.restOnBattery)] + lockScreen + [
             MenuEntry("Install Screensaver…") { [unowned controller] in controller.installScreensaver() },
             .separator(),
             NSMenuItem(title: "Quit Keshiki", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"),

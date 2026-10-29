@@ -1,24 +1,19 @@
 import Foundation
 
-/// Paints everything below the fish that doesn't move, once: the floor, its plants, the water above them,
-/// the light rays and the shadows of the lily pads.
+/// Paints the bare floor once: silt, pebbles and cushions of moss and algae. The plants that move are drawn live
+/// (`Seagrass`, and the reeds standing at the edge). The water over it, and the light and shadows
+/// in it, are drawn live at the floor's depth.
 enum PondFloor {
-    private static let shallowOpacity = 0.28
-    private static let deepOpacity = 0.78
-    private static let depthLevels = 7
-    private static let plantClusters = 42
+    private static let cushions = 46
 
     /// `scale` is device pixels per design unit; per-pixel effects are computed at full device resolution.
-    static func paint(size: SceneSize, scale: Double, waterName: String, pads: [LilyPad]) -> PixelBuffer {
+    static func paint(size: SceneSize, scale: Double, waterName: String) -> PixelBuffer {
         let palette = WaterPalette.named(waterName)
         let canvas = PixelBuffer(width: Int((size.width * scale).rounded()), height: Int((size.height * scale).rounded()),
                                  scale: scale, color: palette.floor)
         paintSilt(on: canvas, palette: palette, scale: scale)
         paintPebbles(on: canvas, size: size, palette: palette)
-        for _ in 0..<plantClusters { paintPlant(on: canvas, at: plantSpot(in: size), palette: palette) }
-        paintWaterColumn(on: canvas, size: size, palette: palette, scale: scale)
-        paintLightRays(on: canvas, palette: palette, scale: scale)
-        pads.forEach { $0.drawShadow(on: canvas) }
+        for _ in 0..<cushions { paintCushion(on: canvas, at: plantSpot(in: size), palette: palette) }
         return canvas
     }
 
@@ -61,50 +56,16 @@ enum PondFloor {
         }
     }
 
-    /// An irregular clump of sprigs: curved stems with leaves that get lighter towards the tips.
-    private static func paintPlant(on canvas: PixelBuffer, at center: Point, palette: WaterPalette) {
-        let radius = random(14...38)
-        for _ in 0..<Int(radius * 1.3) {
-            let root = center.jittered(radius * 0.35)
-            paintSprig(on: canvas, from: root, length: random(radius * 0.4...radius * 1.1), heading: random(0...(2 * .pi)), palette: palette)
-        }
-    }
-
-    private static func paintSprig(on canvas: PixelBuffer, from root: Point, length: Double, heading: Double, palette: WaterPalette) {
-        let curl = random(-0.06...0.06)
-        var point = root, direction = heading
-        for step in 0..<Int(length) {
-            let progress = Double(step) / length
-            point = point.moved(by: 1, heading: direction)
-            direction += curl
-            canvas.plot(point, palette.plants[0])
-            for side in [-1.0, 1.0] where chance(0.7) {
-                let shade = min(palette.plants.count - 1, 1 + Int(progress * Double(palette.plants.count - 1) + random(0...1.5)))
-                let leaf = point.moved(by: random(1.5...3.5), heading: direction + side * random(0.8...1.5))
-                canvas.disc(leaf, radius: random(1.0...2.4) * (1.25 - progress * 0.5), palette.plants[shade])
-            }
-        }
-    }
-
-    private static func paintWaterColumn(on canvas: PixelBuffer, size: SceneSize, palette: WaterPalette, scale: Double) {
-        for y in 0..<canvas.height {
-            for x in 0..<canvas.width {
-                let depth = Dither.quantize(self.depth(x: Double(x) / scale, y: Double(y) / scale, size: size), levels: depthLevels, x: x, y: y)
-                let water = palette.shallowWater.mixed(with: palette.deepWater, depth)
-                canvas.plot(x, y, water.opacity(shallowOpacity + (deepOpacity - shallowOpacity) * depth))
-            }
-        }
-    }
-
-    /// Soft diagonal shafts of sunlight from the top left.
-    private static func paintLightRays(on canvas: PixelBuffer, palette: WaterPalette, scale: Double) {
-        for y in 0..<canvas.height {
-            for x in 0..<canvas.width {
-                let along = (Double(x) + Double(y) * 0.6) / scale
-                let shaft = max(0, sin(along * 0.0065 + 0.8)) * max(0, sin(along * 0.017 + 2))
-                let level = Dither.quantize(pow(shaft, 2) * 0.9, levels: 4, x: x, y: y)
-                if level > 0 { canvas.plot(x, y, palette.light.opacity(level * 0.16)) }
-            }
+    /// A soft cushion of moss (greens) or algae (olives), domed: lighter on top, darker at the rim.
+    private static func paintCushion(on canvas: PixelBuffer, at center: Point, palette: WaterPalette) {
+        let radius = random(5...16)
+        let colors = chance(0.6) ? Array(palette.plants[0...3])
+            : [Color(0x4e5a2a), Color(0x6b7a3a), Color(0x8a9a48), Color(0xa8b860)].map { $0.mixed(with: palette.silt, 0.25) }
+        for _ in 0..<Int(radius * radius * 0.8) {
+            let reach = Double.random(in: 0...1).squareRoot() * radius, angle = random(0...(2 * .pi))
+            let dome = 1 - reach / radius
+            let shade = min(colors.count - 1, Int(dome * Double(colors.count - 1) + random(0...0.9)))
+            canvas.disc(Point(x: center.x + cos(angle) * reach * 1.3, y: center.y + sin(angle) * reach), radius: random(0.7...1.6), colors[shade])
         }
     }
 }

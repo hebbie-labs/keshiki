@@ -62,6 +62,8 @@ final class FishSchool {
     private static let personalSpace = 10.0
     private static let turnRate = 0.045
     private static let burstSeconds = 1.5...4.0
+    private static let splashChance = 0.15
+    private static let visitChance = 0.1
     private static let shadowOffset = Point(x: 7, y: 9)
     private static let shadow = Color(0x0b2e26, alpha: 0.2)
     private static let eye = Color(0x161616)
@@ -78,19 +80,33 @@ final class FishSchool {
     }
 
     func update(in world: PondWorld, dt: Double) {
-        wander(in: world.size, dt: dt)
+        wander(in: world, dt: dt)
         for index in fish.indices { swim(index, in: world, dt: dt) }
     }
 
-    func draw(on canvas: Canvas) {
+    /// `visibility` below 1 while the school dives under at an opening to the next pond.
+    func draw(on canvas: Canvas, visibility: Double = 1) {
+        guard visibility > 0 else { return }
+        let canvas = visibility < 1 ? FadedCanvas(canvas, amount: visibility) : canvas
         for member in fish { draw(member, on: canvas) }
+    }
+
+    /// Moves the whole school, e.g. into the coordinates of the pond it swam over to.
+    func shift(by offset: Point) {
+        center = Point(x: center.x + offset.x, y: center.y + offset.y)
+        destination = center
+        for index in fish.indices {
+            fish[index].position = Point(x: fish[index].position.x + offset.x, y: fish[index].position.y + offset.y)
+        }
     }
 
     // MARK: - Movement
 
-    /// The school as a whole drifts slowly from one spot to the next.
-    private func wander(in size: SceneSize, dt: Double) {
-        if destination.distance(to: center) < 12 { destination = size.randomPoint(marginX: 70, marginY: 60) }
+    /// The school as a whole drifts slowly from one spot to the next, now and then over to a neighbouring pond.
+    private func wander(in world: PondWorld, dt: Double) {
+        if destination.distance(to: center) < 12 {
+            destination = (chance(Self.visitChance) ? world.spotBeyondOpening() : nil) ?? world.size.randomPoint(marginX: 70, marginY: 60)
+        }
         let step = min(1, 0.006 * dt * 60)
         center.x += (destination.x - center.x) * step * 0.4
         center.y += (destination.y - center.y) * step * 0.4
@@ -109,12 +125,13 @@ final class FishSchool {
         member.nextBurstIn -= dt
         var targetSpeed = species.cruiseSpeed * wanted.urgency
         if member.nextBurstIn <= 0 {
-            // Small fish swim in little bursts and glide in between.
+            // Small fish swim in little bursts and glide in between; now and then one breaks the surface.
+            if member.nextBurstIn + dt > 0 && chance(Self.splashChance) { world.addRipple(at: member.position, radius: 1, strength: 0.05) }
             targetSpeed *= 1.5
             if member.nextBurstIn < -0.25 { member.nextBurstIn = random(Self.burstSeconds) }
         }
         member.speed += (targetSpeed - member.speed) * (targetSpeed > member.speed ? 0.18 : 0.04)
-        member.position = world.size.clamped(member.position.moved(by: member.speed * dt * 60, heading: member.heading), margin: 4)
+        member.position = world.clamped(member.position.moved(by: member.speed * dt * 60, heading: member.heading), margin: 4)
         member.tailPhase += dt * (4 + member.speed * 14)
         fish[index] = member
 
@@ -181,7 +198,7 @@ final class FishSchool {
             canvas.plot(Point(x: segment.point.x + Self.shadowOffset.x, y: segment.point.y + Self.shadowOffset.y), Self.shadow)
         }
         drawTail(points, from: bodyEnd, on: canvas)
-        drawPectoralFins(points, on: canvas)
+        drawPectoralFins(points, turning: member.turning, on: canvas)
         // Solid discs along the spine (and between points), so a diagonal fish has no gaps.
         for (step, segment) in points.prefix(bodyEnd).enumerated() {
             let half = halfWidth(at: Double(step) / Double(species.length - 1))
@@ -206,10 +223,11 @@ final class FishSchool {
         }
     }
 
-    private func drawPectoralFins(_ points: [(point: Point, direction: Double)], on canvas: Canvas) {
-        let shoulder = points[3]
+    /// Banking into a turn, the outer fin stands out and the inner one lies against the body.
+    private func drawPectoralFins(_ points: [(point: Point, direction: Double)], turning: Double, on canvas: Canvas) {
+        let shoulder = points[3], lean = clamp(turning * 25, -1, 1)
         for side in [-1.0, 1.0] {
-            canvas.plot(shoulder.point.moved(by: species.halfWidth + 1, heading: shoulder.direction + side * 2.2), species.fin)
+            canvas.plot(shoulder.point.moved(by: species.halfWidth + 1 - side * lean, heading: shoulder.direction + side * 2.2), species.fin)
         }
     }
 

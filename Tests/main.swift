@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 // Runnable checks for the logic that's easy to get subtly wrong: `make test`.
@@ -57,6 +58,54 @@ let general = try! JSONDecoder().decode(KeshikiSettings.self, from: wallpapers)
 check(general.theme == "night" && general.rain && !general.showOnLockScreen && general.scene == .koiPond, "Wallpapers 1.x settings carry over")
 check(try! JSONDecoder().decode(KoiPondSettings.self, from: wallpapers).mood == "playful", "the koi fields carry over from the same data")
 
+let shared = SharedSettings([SharedSettings.generalKey: Data(#"{"theme":"dusk","rain":true}"#.utf8),
+                             SharedSettings.koiPondKey: Data(#"{"water":"deep-clear"}"#.utf8)])
+check(shared.general.theme == "dusk" && shared.general.rain && shared.koiPond.water == "deep-clear", "the screensaver and the wallpaper read the app's settings")
+check(SharedSettings(["settings": Data("garbage".utf8)]).general == KeshikiSettings(), "unreadable shared settings fall back to the defaults")
+
+// Swimming
+let pondWorld = PondWorld(size: SceneSize(width: 960, height: 600), options: KoiPondSettings())
+for _ in 0..<600 { pondWorld.update(dt: 1.0 / 30) }
+let gaps = zip(pondWorld.kois[0].body, pondWorld.kois[0].body.dropFirst()).map { $0.distance(to: $1) }
+check(gaps.max()! - gaps.min()! < 0.01, "a koi's body keeps its segment length while it swings")
+for _ in 0..<40 {
+    pondWorld.touchWater(at: pondWorld.pads[0].center.jittered(20))
+    pondWorld.update(dt: 1.0 / 30)
+}
+let pushed = pondWorld.pads[0].offset
+for _ in 0..<900 { pondWorld.update(dt: 1.0 / 30) }
+check(hypot(pushed.x, pushed.y) > 1 && pondWorld.pads.allSatisfy { hypot($0.offset.x, $0.offset.y) < 12 }, "waves push the lily pads and their stems pull them back")
+
+// A fresh pond: its frog rests at least ten seconds before its first jump (and splash).
+let splashWorld = PondWorld(size: SceneSize(width: 960, height: 600), options: KoiPondSettings())
+splashWorld.splash(at: Point(x: 400, y: 300), droplets: 10, power: 50)
+let thrown = splashWorld.droplets.count
+for _ in 0..<60 { splashWorld.update(dt: 1.0 / 30) }
+check(thrown == 10 && splashWorld.droplets.isEmpty, "a splash throws droplets that fall back into the water")
+let padCanvas = DrawList(width: 1440, height: 900, scale: 1.5)
+for _ in 0..<40 { LilyPad.scatter(in: SceneSize(width: 960, height: 600)).forEach { $0.draw(on: padCanvas) } }
+check(padCanvas.primitives.allSatisfy { $0.bounds.x < $0.bounds.z && $0.bounds.y < $0.bounds.w }, "lily pads of any shape draw clean rows, slit and all")
+
+// Ponds across displays: two side by side (y up, like screen frames), one a little apart.
+let left = PondWorld(size: SceneSize(width: 960, height: 600), options: KoiPondSettings())
+let right = PondWorld(size: SceneSize(width: 960, height: 600), options: KoiPondSettings())
+let apart = PondWorld(size: SceneSize(width: 960, height: 600), options: KoiPondSettings())
+let links = PondLinks([(left, CGRect(x: 0, y: 0, width: 1000, height: 625)), (right, CGRect(x: 1000, y: 0, width: 1000, height: 625)),
+                       (apart, CGRect(x: 0, y: 700, width: 1000, height: 625))], unitsPerPoint: 0.96)
+check(left.openings.count == 1 && left.openings[0].edge == .right && abs(left.openings[0].span.upperBound - 600) < 0.01
+      && right.openings.first?.edge == .left && apart.openings.isEmpty, "displays that touch open into each other, a gap stays a wall")
+let traveller = left.kois[0]
+traveller.shift(by: Point(x: 965 - traveller.head.x, y: 300 - traveller.head.y))
+links.exchange()
+check(left.kois.count == 7 && right.kois.count == 9 && right.kois.contains { $0 === traveller } && near(traveller.head, Point(x: 5, y: 300)),
+      "a koi that swims out on one display comes in on the next, at the same height")
+check(left.visibility(at: Point(x: 950, y: 300)) < 0.5 && left.visibility(at: Point(x: 10, y: 300)) == 1,
+      "fish dive under at an opening, not at a wall")
+
+let reeds = Reeds.make(size: SceneSize(width: 960, height: 600), scale: 1.5)
+check(!reeds.sprites.isEmpty && reeds.sprites.allSatisfy { $0.root.y < 600 * 0.8 && $0.x + $0.width <= reeds.sheet.width },
+      "reeds stand along the far and side edges, never in front, each cut from the sheet")
+
 // Drawing
 let tiny = PixelBuffer(width: 10, height: 10)
 tiny.fillRect(Point(x: 3, y: -20), width: 2, height: 2, Color(0xffffff))
@@ -75,7 +124,7 @@ final class DiscScene: LivingScene {
     var settings = KeshikiSettings()
     var systemDark = false
     let pixelWidth = 64, pixelHeight = 64, pixelScale = 1.5
-    var caustics: CausticsFrame? { nil }
+    var water: WaterSurface? { nil }
     private var backdrop: PixelBuffer? = PixelBuffer(width: 64, height: 64)
     func advance(by dt: Double) {}
     func takeNewBackdrop() -> PixelBuffer? { defer { backdrop = nil }; return backdrop }
@@ -107,6 +156,13 @@ if SceneRenderer.isAvailable {
     for _ in 0..<90 { scene.advance(by: 1.0 / 30) }
     let frame = SceneRenderer(scene: scene)!.snapshot(scene)
     check(frame?.width == 1440 && frame?.height == 900, "a 16:10 pond renders at 1440×900")
+
+    let pond = SceneKind.koiPond.make(aspectRatio: WaterStage.pondAspect(screenAspect: 1.6), settings: KeshikiSettings())
+    let stage = WaterStage(scene: pond, screenAspect: 1.6)
+    let still = stage?.snapshot(width: 640, height: 400)
+    check(still?.width == 640 && still?.height == 400, "the pond renders in 3D at the display's size")
+    let middle = stage?.pondSpot(forViewSpot: Point(x: 0.5, y: 0.5)), back = middle.flatMap { stage?.viewSpot(forPondSpot: $0) }
+    check(near(back, Point(x: 0.5, y: 0.5)), "a click on the screen finds its spot in the pond and back")
 } else {
     print("– no Metal device, GPU checks skipped")
 }

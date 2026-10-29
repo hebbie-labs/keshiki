@@ -12,6 +12,8 @@ final class KoiPondControls: SceneControls {
         didSet { SettingsStore.save(memory, as: SettingsStore.koiMemoryKey) }
     }
     private let scenes: () -> [LivingScene]
+    /// The ponds of the current windows, joined where displays touch; rebuilt when the windows change.
+    private var links: (windows: [ObjectIdentifier], ponds: PondLinks)?
 
     private static let greetingSeconds: TimeInterval = 12
 
@@ -60,6 +62,15 @@ final class KoiPondControls: SceneControls {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.greetingSeconds) { [weak self] in
             self?.ponds.forEach { $0.world.scatter() }
         }
+    }
+
+    func advanced(windows: [SceneWindow]) {
+        let ids = windows.map(ObjectIdentifier.init)
+        if links?.windows != ids {
+            let ponds = windows.compactMap { window in (window.scene as? KoiPondScene).map { (world: $0.world, frame: window.frame) } }
+            links = (ids, PondLinks(ponds, unitsPerPoint: SceneDisplays.unitsPerPoint))
+        }
+        links?.ponds.exchange()
     }
 
     private func invite(_ visitor: Visitor) {

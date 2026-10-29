@@ -8,11 +8,14 @@ final class Goose {
     private(set) var isLeaving = false
     private var destination: Point
     private var paddleTimer = 0.0
+    private var bowTimer = 0.0
 
     private static let scale = 1.6
     private static let speed = 0.6
     private static let turnRate = 0.02
     private static let paddleEverySeconds = 0.6
+    /// The breast pushes the water aside as the goose swims: a bow wave that opens into a V behind it.
+    private static let bowEverySeconds = 0.12
     private static let white = Color(0xf6f4ee)
 
     init(in size: SceneSize) {
@@ -26,6 +29,19 @@ final class Goose {
 
     func leave() {
         staysFor = 0
+    }
+
+    /// Moves the goose, e.g. into the coordinates of the pond it swam over to.
+    func shift(by offset: Point) {
+        position = Point(x: position.x + offset.x, y: position.y + offset.y)
+        destination = Point(x: destination.x + offset.x, y: destination.y + offset.y)
+    }
+
+    /// Swum over from a neighbouring pond: it stays a while here too.
+    func arrive(in size: SceneSize) {
+        isLeaving = false
+        staysFor = random(30...60)
+        destination = size.randomPoint(marginX: 100, marginY: 80)
     }
 
     /// Returns false once the goose has swum off screen.
@@ -53,10 +69,16 @@ final class Goose {
     }
 
     private func paddle(in world: PondWorld, dt: Double) {
+        bowTimer += dt
+        if bowTimer >= Self.bowEverySeconds {
+            bowTimer = 0
+            let bow = position.moved(by: 14 * Self.scale, heading: heading)
+            for side in [-1.0, 1.0] { world.addRipple(at: bow.moved(by: 6, heading: heading + side * .pi / 2), radius: 2.5, strength: 0.22) }
+        }
         paddleTimer += dt
         guard paddleTimer >= Self.paddleEverySeconds else { return }
         paddleTimer = 0
-        world.addRipple(at: position.moved(by: -14, heading: heading), radius: 3, life: 0.6)
+        world.addRipple(at: position.moved(by: -14, heading: heading), radius: 3, strength: 0.6)
     }
 
     private func drawBody(on canvas: Canvas, along: Point) {

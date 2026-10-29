@@ -25,30 +25,56 @@ its first launch.
 
 ## Everywhere
 
-- **Every display**, one scene for all of them.
+- **Every display**, one pond across all of them. Where two displays touch
+  (as arranged in *System Settings → Displays*), their ponds open into each
+  other: koi and the tiny fish dive under at the edge and come up on the
+  other display, the goose and the ball float over, and a click calls the
+  koi from next door too. Things are the same size on every display. While
+  any display plays, all ponds live on, so fish can visit a resting one.
 - **Dawn to night on your clock** (or synced with dark mode), fireflies after
   dark, rain on demand.
-- **Lock screen:** a still of the scene becomes the desktop picture, which the
-  lock screen shows; it follows the time of day and your own picture comes back
-  when you quit. *Install Screensaver…* adds the animated scene as a system
-  screensaver too.
+- **Lock screen, animated (macOS 26+):** Keshiki brings a wallpaper extension.
+  Choose *Animate Lock Screen…* in the menu (or *System Settings → Wallpaper*)
+  and pick **Koi Pond** under *Keshiki*: the pond then plays on the lock screen
+  and as the screensaver, with your theme, water and mood. macOS has no public
+  API for this, so the extension speaks the system's private wallpaper protocol
+  (as [Phosphene](https://github.com/kageroumado/phosphene) does) and a macOS
+  update may break it; the still below is the fallback.
+- **Lock screen, still (macOS 14–25):** apps can't draw on the lock screen
+  there. A still of the scene becomes the desktop picture, which the lock screen
+  shows; it follows the time of day and your own picture comes back when you
+  quit. For movement, *Install Screensaver…* adds the animated scene as a
+  system screensaver: set it to start after a few minutes and turn on
+  *System Settings → Lock Screen → Require password after screen saver begins*,
+  and the pond plays until you type. The screensaver follows the app's
+  settings (macOS asks once whether Keshiki may access another app's data).
 - **Only where you can see it:** a display's scene plays while its desktop is
   free. As soon as any app window lies on that display (focused or not), or the
   desktop is covered, it rests: the last frame stays, and nothing is simulated
   or drawn there. It can rest on battery too.
-- **Light on the machine:** drawn on the GPU with Metal at 1440 px wide and
-  scaled up with crisp pixels. Measured on an Apple Silicon Mac: about 2 % CPU
-  and 1 % GPU per playing display at 30 fps (4 % CPU for the whole app with one
-  display playing), and about 200 MB of memory, ~113 MB of which is the fixed
-  cost of using Metal at all.
+- **In 3D:** the pond is a real basin seen from a slightly tilted camera,
+  drawn with Metal. The koi, the plants and the visitors stay pixel art
+  (1440 px wide), laid in at their depth. Measured on an Apple Silicon Mac at
+  30 fps: about 4 % of one CPU core per playing display.
 
 ## Koi Pond
 
 - **Eight koi with a life of their own.** Each has a favourite: herding the
   tiny fish, grazing duckweed, lotus shade, the frog, the ball or the goose.
-- **A living pond.** Clear water with a wobbling net of sunlight on the floor,
-  shafts of light, water plants along the shallow edges, deep shadows under
-  the lily pads, and schools of Japanese pond fish (hime-medaka, tanago
+- **Real water.** Waves spread, overlap and bounce off the edges and the lily
+  pads. The surface reflects the sky and glitters in the sun; below it the
+  water bends the view of the floor, focuses sunlight into a moving net of
+  light, and swallows light with depth, so the floor fades into green-blue
+  where the pond is deep. Lily pads and koi cast their shadows onto the floor,
+  further off the deeper it lies. Clicks, food, rain, the frog, the goose and
+  the fish themselves all make waves; the goose pushes a bow wave, the frog
+  and the rain throw up droplets, and fireflies show again in the water.
+- **Things move like things.** A koi's body is a chain with inertia: the tail
+  swings out in a turn and the koi leans into it. Lily pads drift on their
+  stems and spring back, duckweed and the ball are pushed by waves and fish.
+- **A living pond.** Clear water over a sunlit floor with cushions of moss and
+  algae, seagrass streaming in the current and bending aside for the koi,
+  sweet flag and reeds swaying at the edge, and schools of Japanese pond fish (hime-medaka, tanago
   bitterlings, oikawa and motsugo) that swim in bursts and glides.
 - **They learn your routine.** Feed them at the same spot around the same time
   on two different days and they'll be waiting there.
@@ -61,31 +87,56 @@ its first launch.
 ## Development
 
 ```sh
-make run       # build build/Keshiki.app (with the screensaver inside) and launch it
+make run       # build build/Keshiki.app (with the screensaver and wallpaper inside) and launch it
 make dmg       # build build/Keshiki-<version>.dmg
 make test      # build and run the checks
 ```
 
 The version comes from `CFBundleShortVersionString` in `App/Info.plist`.
 
+There's no Xcode project and no SwiftPM: the `Makefile` calls `swiftc` on file
+globs (Swift 5 mode, ad-hoc signed). `make saver` and `make wallpaper` build
+just the screensaver or the wallpaper extension.
+
+- **Checks** are a plain executable (`Tests/main.swift`), not XCTest:
+  `check(condition, "description")` prints ✔ or ✘, and `make test` runs them
+  all. The GPU checks need a Metal device.
+- **Shaders** (`Core/Shaders.swift`, `Core/StageShaders.swift`) are Swift
+  string literals compiled at runtime, so a shader error only shows when the
+  renderer fails to start, not at build time.
+- **Settings** are `Codable` structs saved as JSON in `UserDefaults`
+  (`SettingsStore`). They still read what *Wallpapers* 1.x saved, so new
+  fields need a default when decoding (covered by the checks).
+
 ## Structure
+
+One engine (`Core/` and `Scenes/`) is built into the app, the screensaver, the
+wallpaper extension and the checks, so it must not depend on `App/`.
 
 - `Core/` — shared by every scene.
   - `LivingScene` is what a scene must do; scenes draw into a `Canvas` in
     design units (960 wide) and render at `pixelScale` (1.5 → 1440 px).
   - `DrawList` records each frame as rectangles and discs; `SceneRenderer`
-    draws them on the GPU as instanced quads (`Shaders`), over the scene's
-    painted backdrop with the `Caustics` light net, with a static overlay in
-    between (stored as a palette texture). All displays share one GPU
-    submission per frame.
+    draws them on the GPU as instanced quads (`Shaders`) in two pixel-art
+    layers: what swims, and what floats (with a static overlay, stored as a
+    palette texture). A scene's `WaterSurface` says where the water can't move,
+    how deep it is and where it was disturbed; the renderer simulates it as a
+    height field in a compute shader.
+  - `WaterStage` lays it all out in 3D: the painted backdrop as the floor's
+    basin, the swimming layer under the surface, and the surface moved by the
+    waves, carrying the floating layer and reflecting the sky (`StageShaders`).
+    A scene's `Standing` sprites (reeds) stand up out of the water at the edge,
+    facing the camera and swaying.
   - `PixelBuffer` paints the static layers once on the CPU; their CPU copies
     are dropped after upload.
   - `Atmosphere` (time of day, rain, fireflies) and `KeshikiSettings`.
 - `Scenes/` — `SceneKind` lists every scene; each has its own folder.
-  - `KoiPond/` — `KoiPondScene` owns a `PondWorld` (`Koi`, `FishSchool`,
-    `Frog`, `Goose`, `Ball`, `LilyPad`, duckweed, food, ripples), the painted
-    `PondFloor` (backdrop) and lily pads (overlay), the learning in `KoiMemory`
-    and `KoiPondSettings`.
+  - `KoiPond/` — `PondLinks` joins the ponds of neighbouring displays.
+    `KoiPondScene` owns a `PondWorld` (`Koi`, `FishSchool`,
+    `Frog`, `Goose`, `Ball`, `LilyPad`, duckweed, `Seagrass`, food, droplets
+    in `Splashes`, and the ripples they make in the water, which push what's
+    `Floating`), the painted `PondFloor` (backdrop), the `Reeds` at the edge,
+    the learning in `KoiMemory` and `KoiPondSettings`.
 - `App/` — the menu bar app (AppKit, no Xcode project needed).
   - `KeshikiController` wires everything and runs the 30 fps frame timer.
   - `WindowWatcher` knows which displays have app windows on them.
@@ -99,6 +150,11 @@ The version comes from `CFBundleShortVersionString` in `App/Info.plist`.
   - `StatusMenu` / `MenuEntry` build the menu; `SettingsStore` persists
     settings and migrates from Wallpapers 1.x.
 - `Saver/` — `KeshikiSaverView`, the scenes as a `.saver` bundle.
+- `Wallpaper/` — the scenes as a system wallpaper extension (macOS 26+).
+  `AgentConnection` answers the private WallpaperAgent protocol (`Bridge.h`),
+  `Surfaces` draws a scene per desktop, lock screen or preview into a layer the
+  agent hosts, and `SettingsTile` is the tile in System Settings. Both the
+  screensaver and the extension get the app's settings through `SharedSettings`.
 - `Tests/` — runnable checks (learning, time of day, settings migration,
   drawing, and that the GPU draws pixel for pixel like the CPU).
 - `Assets/` — app icon.
