@@ -61,10 +61,10 @@ enum Reeds {
     }
 
     /// How far a near corner's clump reaches along the edge, in design units.
-    private static let cornerReach = 190.0
+    private static let cornerReach = 150.0
     /// How far up the side a near corner's clump climbs, as a share of the pond's depth from the far edge.
-    private static let cornerRise = 0.28
-    private static let cornerReeds = 70
+    private static let cornerRise = 0.22
+    private static let cornerReeds = 45
     /// The share of the pond's width the camera cuts off each side at the near edge.
     private static let nearCut = 0.12
 
