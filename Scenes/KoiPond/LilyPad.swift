@@ -47,7 +47,7 @@ struct LilyPad {
                               radius: random(18...44), notchAngle: random(0...(2 * .pi)),
                               hasFlower: chance(0.3), petalTurn: random(0...(2 * .pi)),
                               shade: chance(0.08) ? shades[3] : shades[Int.random(in: 0...2)], wobble: random(0...(2 * .pi)))
-            if !pads.contains(where: { pad.overlaps($0) }) { pads.append(pad) }
+            if !pads.contains(where: { pad.overlaps($0) }), !Reeds.inNearCorner(pad.center, radius: pad.radius, size: size) { pads.append(pad) }
         }
         return pads
     }
@@ -118,7 +118,7 @@ struct LilyPad {
 
     /// The edge curls up a little: it catches the light on the sun's side and darkens on the other.
     private func drawRim(on canvas: Canvas, at top: Point, notchAngle: Double) {
-        let steps = Int(2.5 * .pi * radius)
+        let steps = Int(2 * .pi * radius)
         for step in 0..<steps {
             let angle = Double(step) / Double(steps) * 2 * .pi
             guard !inSlit(angle, notchAngle: notchAngle) else { continue }
@@ -128,7 +128,7 @@ struct LilyPad {
         }
     }
 
-    /// Fine veins from the stem, lighter than the leaf, curving a little and forking halfway, fading towards the edge.
+    /// Fine veins from the stem, lighter than the leaf, curving a little, fading towards the edge.
     private func drawVeins(on canvas: Canvas, at top: Point, notchAngle: Double) {
         for vein in 1..<16 {
             let angle = notchAngle + Double(vein) / 16 * 2 * .pi
@@ -136,22 +136,42 @@ struct LilyPad {
                 let along = step / radius, bend = sin(along * 3 + wobble + Double(vein)) * 0.05
                 let color = shade.vein.mixed(with: shade.rim, 0.4).opacity(0.85 * (1 - along * 0.8))
                 canvas.disc(top.moved(by: step, heading: angle + bend), radius: 0.4, color)
-                if along > 0.5 {
-                    canvas.disc(top.moved(by: step, heading: angle + bend + (along - 0.5) * 0.25), radius: 0.25, color)
-                }
             }
         }
     }
 
+    /// A water lily seen from above: three rings of pointed petals, the outer ones lying open and long, the inner ones
+    /// standing up short and pale, each blushing towards its tip and lit on the sun's side, around a golden heart
+    /// of stamens. It casts a soft shadow on its pad.
     private func drawLotus(on canvas: Canvas, at center: Point) {
-        for petal in 0..<8 {
-            let angle = Double(petal) / 8 * 2 * .pi + petalTurn
-            canvas.disc(center.moved(by: 6, heading: angle + turn), radius: 2.6, petal.isMultiple(of: 2) ? Color(0xe8578a) : Color(0xf39ab9))
+        let turn = petalTurn + self.turn
+        canvas.disc(center.moved(by: 1.5, heading: .pi * 0.25), radius: 10.5, Color(0x0f2a14, alpha: 0.22))
+        for ring in Self.lotusRings {
+            for petal in 0..<ring.count {
+                let angle = (Double(petal) + ring.offset) / Double(ring.count) * 2 * .pi + turn
+                drawPetal(on: canvas, from: center, heading: angle, length: ring.length, width: ring.width, blush: ring.blush)
+            }
         }
-        for petal in 0..<5 {
-            canvas.disc(center.moved(by: 3, heading: Double(petal) / 5 * 2 * .pi + petalTurn + turn + 0.3), radius: 2.2, Color(0xf8c3d6))
+        canvas.disc(center, radius: 2.6, Color(0xf2b632))
+        for stamen in 0..<10 {
+            let angle = Double(stamen) / 10 * 2 * .pi + turn
+            canvas.disc(center.moved(by: 2.2, heading: angle), radius: 0.5, stamen.isMultiple(of: 2) ? Color(0xffe27a) : Color(0xe8902a))
         }
-        canvas.disc(center, radius: 2, Color(0xffcf4a))
-        canvas.plot(center, Color(0xf08a24))
+        canvas.disc(center, radius: 0.9, Color(0xd9a12a))
+    }
+
+    private static let lotusRings: [(count: Int, offset: Double, length: Double, width: Double, blush: Double)] = [
+        (10, 0, 10.5, 2.3, 1), (8, 0.5, 8, 2, 0.7), (6, 0.25, 5.5, 1.6, 0.35),
+    ]
+
+    /// A petal widens from its base, then narrows to a point: white at the base, pink towards the tip.
+    private func drawPetal(on canvas: Canvas, from center: Point, heading: Double, length: Double, width: Double, blush: Double) {
+        let sunny = (cos(heading - .pi * 1.25) + 1) / 2
+        let base = Color(0xfbeef2), tip = Color(0xe2558a).mixed(with: base, 1 - blush)
+        for step in stride(from: 0.8, through: length, by: 0.8) {
+            let t = step / length
+            let color = base.mixed(with: tip, pow(t, 1.5)).mixed(with: Color(0x7a2a48), 0.18 * (1 - sunny))
+            canvas.disc(center.moved(by: step, heading: heading), radius: width * pow(sin(.pi * pow(t, 0.75)), 0.8), color)
+        }
     }
 }

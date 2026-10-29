@@ -22,8 +22,8 @@ enum Reeds {
     }
 
     /// Clumps along the far edge and down the sides, with gaps; each clump is one kind of plant. They stand a little
-    /// in from the rim, which the tilted camera puts at (or just past) the screen's edge, and the near edge stays
-    /// open, so they never stand in front of the pond.
+    /// in from the rim, which the tilted camera puts at (or just past) the screen's edge. The near edge stays open
+    /// apart from its corners, so they never stand in front of the pond.
     private static func roots(in size: SceneSize) -> [(Point, Bool)] {
         let seed = random(0...100)
         func clump(_ along: Double) -> Bool? {
@@ -44,8 +44,45 @@ enum Reeds {
                 along += random(7...16)
             }
         }
+        // A thick, rounded clump in each near corner, framing the pond without standing in front of it: it fills a
+        // quarter oval from the corner the camera shows on out of the picture. The camera looks at the near edge
+        // from closer, so it shows less of it.
+        func shownEdge(_ y: Double) -> Double { shownEdgeOffset(y, size: size) }
+        for side in [0.0, 1.0] {
+            let sweetFlag = chance(0.5), wobble = random(0...(2 * .pi))
+            for _ in 0..<Self.cornerReeds {
+                // A ragged rim, and a few stragglers beyond it, so the clump doesn't end in a line.
+                let angle = random(0...(.pi / 2))
+                let rim = 1 + 0.2 * sin(angle * 6 + wobble) + 0.1 * sin(angle * 13 + wobble * 2)
+                let reach = (chance(0.12) ? random(1...1.35) : random(0...1).squareRoot()) * rim
+                let y = size.height + Self.cornerOut - sin(angle) * reach * size.height * Self.cornerRise
+                let x = shownEdge(y) - Self.cornerOut + cos(angle) * reach * Self.cornerReach
+                roots.append((Point(x: side == 0 ? x : size.width - x, y: y), sweetFlag))
+            }
+        }
         return roots
     }
+
+    /// How far a near corner's clump reaches along the edge, in design units.
+    private static let cornerReach = 150.0
+    /// How far up the side a near corner's clump climbs, as a share of the pond's depth from the far edge.
+    private static let cornerRise = 0.22
+    private static let cornerReeds = 90
+    /// How far a near corner's clump is pushed out of the picture, in design units.
+    private static let cornerOut = 35.0
+    /// True if a disc of this radius reaches into a near corner's clump, where nothing should float.
+    static func inNearCorner(_ point: Point, radius: Double, size: SceneSize) -> Bool {
+        let x = min(point.x, size.width - point.x) - shownEdgeOffset(point.y, size: size) + cornerOut
+        let y = size.height + cornerOut - point.y
+        // The rim wobbles out to 1.3 and stragglers stand to 1.35 times the clump's reach.
+        return pow(x / (cornerReach * 1.35 + radius), 2) + pow(y / (size.height * cornerRise * 1.35 + radius), 2) < 1
+    }
+
+    /// How far in from the side the camera shows the pond at this depth into it.
+    private static func shownEdgeOffset(_ y: Double, size: SceneSize) -> Double { nearCut * size.width * y / size.height }
+
+    /// The share of the pond's width the camera cuts off each side at the near edge.
+    private static let nearCut = 0.12
 
     /// Sword-shaped leaves fanning from the root, a light midrib, and now and then a flower spike off to the side.
     private static func paintSweetFlag(on sheet: PixelBuffer, at root: Point) {

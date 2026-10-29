@@ -248,6 +248,7 @@ final class WaterStage {
             clock = (clock + 1.0 / 30).truncatingRemainder(dividingBy: 600)
         }
         uniforms.slant.z = clock
+        uniforms.slant.w = Float(surface.murk)
         func linear(_ color: Color) -> SIMD3<Float> {
             SIMD3(pow(Float(color.red) / 255, 2.2), pow(Float(color.green) / 255, 2.2), pow(Float(color.blue) / 255, 2.2))
         }

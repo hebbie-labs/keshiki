@@ -16,7 +16,7 @@ enum StageShaders {
         float4 pond;    // width and height in design units, world units per design unit, depth of the swimmers
         float4 water;   // the water's colour (linear); how steep the waves look
         float4 sun;     // towards the sun
-        float4 slant;   // how far sunlight moves sideways per unit of depth in the water (design x, y); seconds
+        float4 slant;   // how far sunlight moves sideways per unit of depth in the water (design x, y); seconds; how much the water hides of the floor
         float4 light;   // the glow over the far side (linear, times its strength); how strong the sunlight is
     };
 
@@ -37,8 +37,7 @@ enum StageShaders {
     // so deep water turns blue rather than green.
     constant float3 absorption = float3(0.014, 0.009, 0.007);
     constant float3 sunColor = float3(1, 0.96, 0.88);
-    // How much the water body hides of the floor and of the fish swimming in it.
-    constant float floorMurk = 0.68;
+    // How much the water body hides of the fish swimming in it; the floor's share comes with the water.
     constant float swimmerMurk = 0.12;
 
     // The water body over something lit below it: its colour, darker in the shadows the light casts,
@@ -105,7 +104,9 @@ enum StageShaders {
         float3 clear = clearness(depth, normalize(stage.eye.xyz - in.world));
         float3 ground = pow(floorTexture.sample(floorSampler, seen).rgb, 2.2);
         float lit = 0.45 + 0.75 * saturate(dot(normalize(in.normal), stage.sun.xyz)) * light.y;
-        return float4(underWater(stage, ground * lit, floorMurk, light, clear, in.spot), 1);
+        // Where it's shallow there's little water to hide the floor.
+        float murk = stage.slant.w * (0.35 + 0.65 * saturate(depth / 40));
+        return float4(underWater(stage, ground * lit, murk, light, clear, in.spot), 1);
     }
 
     fragment float4 swimmersFragment(Fragment in [[stage_in]], constant Stage &stage [[buffer(1)]],
