@@ -13,15 +13,15 @@
 	<key>CFBundlePackageType</key>
 	<string>XPC!</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.0.0</string>
+	<string>2.1.0</string>
 	<key>CFBundleVersion</key>
-	<string>3</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>26.0</string>
+	<string>4</string>
 	<key>EXAppExtensionAttributes</key>
 	<dict>
 		<key>EXExtensionPointIdentifier</key>
 		<string>com.apple.wallpaper</string>
 	</dict>
+	<key>LSMinimumSystemVersion</key>
+	<string>26.0</string>
 </dict>
 </plist>
