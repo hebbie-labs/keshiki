@@ -33,9 +33,8 @@ extension PondWorld {
     /// How high a leaf's tip stands off the floor, compared to its length: the young leaves stand up, the old lie flat.
     private static let rise = 0.35
 
-    /// On the floor where it's neither too shallow nor too deep for the light, often a few together;
-    /// in an overgrown pond also crowding the edges all round, some grown big.
-    static func plantRosettes(in size: SceneSize, waterName: String) -> [Rosette] {
+    /// On the floor where it's neither too shallow nor too deep for the light, often a few together.
+    static func plantRosettes(in size: SceneSize) -> [Rosette] {
         var rosettes: [Rosette] = []
         while rosettes.count < Self.rosettes {
             let root = rosettes.last.flatMap { chance(0.45) ? $0.root.jittered(26, 20) : nil } ?? size.randomPoint(marginX: 30, marginY: 25)
@@ -43,6 +42,13 @@ extension PondWorld {
             guard depth > 0.08, depth < 0.65 else { continue }
             rosettes.append(rosette(at: root))
         }
+        return rosettes
+    }
+
+    /// In an overgrown pond, rosettes crowding the edges all round, some grown big. Too many to sway every frame,
+    /// so they're painted into the floor once (`paintRosettes`).
+    static func plantEdgeRosettes(in size: SceneSize, waterName: String) -> [Rosette] {
+        var rosettes: [Rosette] = []
         for _ in 0..<WaterPalette.named(waterName).edgePlants {
             let inward = random(6...80)
             let root = switch Int.random(in: 0..<4) {
@@ -87,21 +93,31 @@ extension PondWorld {
         }
     }
 
-    /// All shadows first, then the leaves.
+    /// Drawn every frame, in steps coarse enough to stay light; all shadows first, then the leaves.
     func drawRosettes(on canvas: Canvas) {
+        Self.draw(rosettes, on: canvas, clock: clock, step: 0.8)
+    }
+
+    /// Paints rosettes that never move once, finely, e.g. into the floor.
+    static func paintRosettes(_ rosettes: [Rosette], on canvas: Canvas) {
+        draw(rosettes, on: canvas, clock: 0, step: 0.4)
+    }
+
+    private static func draw(_ rosettes: [Rosette], on canvas: Canvas, clock: Double, step: Double) {
         for shadows in [true, false] {
             for rosette in rosettes {
-                for leaf in rosette.leaves { drawLeaf(leaf, of: rosette, asShadow: shadows, on: canvas) }
+                for leaf in rosette.leaves { drawLeaf(leaf, of: rosette, asShadow: shadows, on: canvas, clock: clock, step: step) }
             }
         }
     }
 
     /// A leaf is a pointed oval on a short stalk: a dark rim, then the blade lit on the sun's side, and a pale midrib.
-    private func drawLeaf(_ leaf: Rosette.Leaf, of rosette: Rosette, asShadow: Bool, on canvas: Canvas) {
+    /// `step` is how far apart its discs lie, in design units.
+    private static func drawLeaf(_ leaf: Rosette.Leaf, of rosette: Rosette, asShadow: Bool, on canvas: Canvas, clock: Double, step: Double) {
         let sway = sin(clock * 0.9 + leaf.phase) * 0.06 * leaf.age
         let heading = leaf.heading + sway
         var points: [(spot: Point, width: Double, t: Double)] = []
-        for step in stride(from: 0.0, through: leaf.length, by: 0.4) {
+        for step in stride(from: 0.0, through: leaf.length, by: step) {
             let t = step / leaf.length
             // A short stalk, then the blade: widest past the middle, coming to a point.
             let blade = t < 0.2 ? 0.25 : sin(.pi * pow((t - 0.2) / 0.8, 0.8))
@@ -109,7 +125,7 @@ extension PondWorld {
             points.append((Point(x: spot.x + rosette.bend.x * t, y: spot.y + rosette.bend.y * t), leaf.width * blade, t))
         }
         if asShadow {
-            for (index, part) in points.enumerated() where index.isMultiple(of: 3) {
+            for (index, part) in points.enumerated() where index.isMultiple(of: max(1, Int(1.2 / step))) {
                 let height = part.t * leaf.length * Self.rise * (1.2 - leaf.age)
                 canvas.disc(Point(x: part.spot.x + Self.sunSlant.x * height, y: part.spot.y + Self.sunSlant.y * height),
                             radius: part.width + 0.8, Self.shadow)
@@ -121,7 +137,7 @@ extension PondWorld {
         for part in points { canvas.disc(part.spot, radius: part.width + 0.35, Self.leafRim.opacity(0.7)) }
         for part in points { canvas.disc(part.spot, radius: part.width, color.mixed(with: Self.youngLeaf, 0.2 * part.t * sunny)) }
         for part in points where part.t > 0.15 && part.t < 0.9 {
-            canvas.disc(part.spot, radius: 0.22, color.mixed(with: Color(0xd8e8a0), 0.35))
+            canvas.disc(part.spot, radius: max(0.22, step * 0.35), color.mixed(with: Color(0xd8e8a0), 0.35))
         }
     }
 }

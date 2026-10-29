@@ -171,13 +171,13 @@ struct LilyPad {
     private func drawPetal(on canvas: Canvas, from center: Point, heading: Double, length: Double, width: Double, blush: Double) {
         let sunny = (cos(heading - .pi * 1.25) + 1) / 2
         let base = Color(0xfbeef2), tip = Color(0xe2558a).mixed(with: base, 1 - blush)
-        for step in stride(from: 0.8, through: length, by: 0.35) {
+        for step in stride(from: 0.8, through: length, by: 0.6) {
             let t = step / length
             let color = base.mixed(with: tip, pow(t, 1.5)).mixed(with: Color(0x7a2a48), 0.18 * (1 - sunny))
             canvas.disc(center.moved(by: step, heading: heading), radius: width * pow(sin(.pi * pow(t, 0.75)), 0.8), color)
         }
         // A fine crease down the middle, fading towards the tip.
-        for step in stride(from: 1.2, through: length * 0.8, by: 0.5) {
+        for step in stride(from: 1.2, through: length * 0.8, by: 0.9) {
             canvas.disc(center.moved(by: step, heading: heading), radius: 0.22, Color(0xc8476f, alpha: 0.35 * blush * (1 - step / length)))
         }
     }

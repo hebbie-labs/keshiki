@@ -49,9 +49,12 @@ enum Reeds {
         // from closer, so it shows less of it.
         func shownEdge(_ y: Double) -> Double { shownEdgeOffset(y, size: size) }
         for side in [0.0, 1.0] {
-            let sweetFlag = chance(0.5)
+            let sweetFlag = chance(0.5), wobble = random(0...(2 * .pi))
             for _ in 0..<Self.cornerReeds {
-                let angle = random(0...(.pi / 2)), reach = random(0...1).squareRoot()
+                // A ragged rim, and a few stragglers beyond it, so the clump doesn't end in a line.
+                let angle = random(0...(.pi / 2))
+                let rim = 1 + 0.2 * sin(angle * 6 + wobble) + 0.1 * sin(angle * 13 + wobble * 2)
+                let reach = (chance(0.12) ? random(1...1.35) : random(0...1).squareRoot()) * rim
                 let y = size.height + Self.cornerOut - sin(angle) * reach * size.height * Self.cornerRise
                 let x = shownEdge(y) - Self.cornerOut + cos(angle) * reach * Self.cornerReach
                 roots.append((Point(x: side == 0 ? x : size.width - x, y: y), sweetFlag))
@@ -71,7 +74,8 @@ enum Reeds {
     static func inNearCorner(_ point: Point, radius: Double, size: SceneSize) -> Bool {
         let x = min(point.x, size.width - point.x) - shownEdgeOffset(point.y, size: size) + cornerOut
         let y = size.height + cornerOut - point.y
-        return pow(x / (cornerReach + radius), 2) + pow(y / (size.height * cornerRise + radius), 2) < 1
+        // The rim wobbles out to 1.3 and stragglers stand to 1.35 times the clump's reach.
+        return pow(x / (cornerReach * 1.35 + radius), 2) + pow(y / (size.height * cornerRise * 1.35 + radius), 2) < 1
     }
 
     /// How far in from the side the camera shows the pond at this depth into it.

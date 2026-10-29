@@ -22,7 +22,7 @@ final class KoiPondScene: LivingScene {
         world = PondWorld(size: size, options: options)
         world.raining = settings.rain
         floorWater = options.water
-        newFloor = PondFloor.paint(size: size, scale: pixelScale, waterName: options.water)
+        newFloor = Self.paintFloor(size: size, scale: pixelScale, waterName: options.water)
         newReeds = Reeds.make(size: size, scale: pixelScale)
     }
 
@@ -88,10 +88,16 @@ final class KoiPondScene: LivingScene {
         Point(x: point.x * world.size.width, y: point.y * world.size.height)
     }
 
+    /// The floor with the plants along the edges that come with this water.
+    private static func paintFloor(size: SceneSize, scale: Double, waterName: String) -> PixelBuffer {
+        let floor = PondFloor.paint(size: size, scale: scale, waterName: waterName)
+        PondWorld.paintRosettes(PondWorld.plantEdgeRosettes(in: size, waterName: waterName), on: floor)
+        return floor
+    }
+
     private func replantIfWaterChanged() {
         guard options.water != floorWater else { return }
-        newFloor = PondFloor.paint(size: world.size, scale: pixelScale, waterName: options.water)
-        world.rosettes = PondWorld.plantRosettes(in: world.size, waterName: options.water)
+        newFloor = Self.paintFloor(size: world.size, scale: pixelScale, waterName: options.water)
         floorWater = options.water
     }
 }
