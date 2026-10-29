@@ -192,7 +192,7 @@ final class WaterStage {
         layer.framebufferOnly = true
         layer.maximumDrawableCount = 2
         layer.drawableSize = CGSize(width: width, height: height)
-        layer.magnificationFilter = .nearest
+        layer.magnificationFilter = .linear
         layer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
         layer.isOpaque = true
     }

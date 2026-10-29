@@ -39,6 +39,14 @@ final class PixelBuffer: Canvas {
         }
     }
 
+    func fill(_ origin: Point, width rectWidth: Double, height rectHeight: Double, _ color: Color) {
+        let columns = scale.fineSpan(origin.x, length: rectWidth).clamped(to: 0..<width)
+        let rows = scale.fineSpan(origin.y, length: rectHeight).clamped(to: 0..<height)
+        for y in rows {
+            for x in columns { plot(x, y, color) }
+        }
+    }
+
     /// A filled circle made of whole pixels, so nothing is anti-aliased.
     func disc(_ center: Point, radius: Double, _ color: Color) {
         let radius = radius * scale.factor

@@ -79,7 +79,7 @@ enum StageShaders {
     // What the waves and the things above do to the sunlight reaching `spot` at `depth`:
     // x how much brighter the waves focus it, y how much is left after spreading and shadows.
     // The light got here through the surface towards the sun, so that's where its waves and shadows are.
-    float2 sunlight(constant Stage &stage, texture2d<float> waves, texture2d<float> floating, texture2d<float> swimming,
+    float2 sunlight(constant Stage &stage, texture2d<float> waves, texture2d<float> floating,
                     float2 spot, float depth) {
         float2 size = stage.pond.xy;
         float curvature = waves.sample(smooth, spot + stage.slant.xy * depth / size).z;
@@ -87,9 +87,6 @@ enum StageShaders {
         // and darkens where they spread it (how much light lands = area before / area after).
         float gathered = 1 / max(1 + 1.6 * depth * curvature, 0.2);
         float shade = floating.sample(crisp, spot + stage.slant.xy * depth / size).a > 0.8 ? 1 : 0;
-        float above = depth - stage.pond.w;
-        // The fish's shadows reach further than the light's slant alone, so they read as shadows beside the fish.
-        if (above > 0 && swimming.sample(crisp, spot + stage.slant.xy * (above * 3 + 8) / size).a > 0.5) shade = 1;
         float lit = 1 - 0.6 * shade;
         return float2(saturate(gathered - 1) * lit, (1 - saturate(1 - gathered) * 0.45) * lit);
     }
@@ -104,7 +101,7 @@ enum StageShaders {
                                   texture2d<float> floating [[texture(2)]], texture2d<float> waves [[texture(3)]]) {
         float depth = max(-in.world.y / stage.pond.z, 0.0) / stage.eye.w;
         float2 seen = bent(waves, in.spot, depth, stage.pond.xy);
-        float2 light = sunlight(stage, waves, floating, swimming, seen, depth);
+        float2 light = sunlight(stage, waves, floating, seen, depth);
         float3 clear = clearness(depth, normalize(stage.eye.xyz - in.world));
         float3 ground = pow(floorTexture.sample(floorSampler, seen).rgb, 2.2);
         float lit = 0.45 + 0.75 * saturate(dot(normalize(in.normal), stage.sun.xyz)) * light.y;
@@ -118,7 +115,7 @@ enum StageShaders {
         float2 seen = bent(waves, in.spot, depth, stage.pond.xy);
         float4 swimmer = layerColor(swimming, seen);
         if (swimmer.a < 0.004) discard_fragment();
-        float2 light = sunlight(stage, waves, floating, swimming, seen, depth);
+        float2 light = sunlight(stage, waves, floating, seen, depth);
         float3 clear = clearness(depth, normalize(stage.eye.xyz - in.world));
         return float4(underWater(stage, swimmer.rgb * (0.55 + 0.5 * light.y), swimmerMurk, light, clear, in.spot), swimmer.a);
     }
