@@ -70,8 +70,8 @@ final class KeshikiController: NSObject, NSApplicationDelegate {
         let now = Date()
         let dt = min(Self.longestFrame, now.timeIntervalSince(lastFrame))
         lastFrame = now
-        guard !isResting else { return }
-        displays.advance(by: dt, where: shouldRun)
+        guard !isResting, displays.advance(by: dt, where: shouldRun) else { return }
+        controls?.advanced(windows: displays.windows)
     }
 
     // MARK: - Settings and system

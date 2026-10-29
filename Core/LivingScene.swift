@@ -1,7 +1,7 @@
 import Foundation
 
 /// A living wallpaper: it moves on its own, draws itself as shapes over a painted backdrop, and reacts to clicks.
-/// Positions are in design units (960 wide); the scene renders at `pixelScale` times that.
+/// Positions are in design units (960 across the main display); the scene renders at `pixelScale` times that.
 protocol LivingScene: AnyObject {
     var settings: KeshikiSettings { get set }
     var systemDark: Bool { get set }

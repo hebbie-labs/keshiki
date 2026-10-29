@@ -18,20 +18,28 @@ final class SceneDisplays {
         guard kind != self.kind || windows.map(\.frame) != NSScreen.screens.map(\.frame) else { return }
         self.kind = kind
         windows.forEach { $0.close() }
+        let unitsPerPoint = Self.unitsPerPoint
         windows = NSScreen.screens.compactMap { screen in
-            let scene = kind.make(aspectRatio: WaterStage.pondAspect(screenAspect: screen.frame.width / screen.frame.height), settings: settings)
+            let scene = kind.make(aspectRatio: WaterStage.pondAspect(screenAspect: screen.frame.width / screen.frame.height), settings: settings,
+                                  width: screen.frame.width * unitsPerPoint)
             configure(scene)
             return SceneWindow(screen: screen, scene: scene)
         }
     }
 
-    /// Moves the scenes that should run forward and draws them.
-    /// The rest keep their last frame on screen and don't simulate either, so they cost nothing.
-    func advance(by dt: Double, where shouldRun: (SceneWindow) -> Bool) {
-        for window in windows where shouldRun(window) {
-            window.scene.advance(by: dt)
-            window.render()
-        }
+    /// While any display plays, every scene moves on (fish may swim over to a resting display and back); only the
+    /// playing ones draw. The rest keep their last frame on screen. Returns whether anything played.
+    func advance(by dt: Double, where shouldRun: (SceneWindow) -> Bool) -> Bool {
+        let playing = windows.filter(shouldRun)
+        guard !playing.isEmpty else { return false }
+        windows.forEach { $0.scene.advance(by: dt) }
+        playing.forEach { $0.render() }
+        return true
+    }
+
+    /// The same design units per point on every display, so a koi is as big on each: 960 across the main one.
+    static var unitsPerPoint: Double {
+        960 / (NSScreen.screens.first?.frame.width ?? 960)
     }
 
     func window(at screenPoint: NSPoint) -> SceneWindow? {

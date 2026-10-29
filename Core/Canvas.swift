@@ -1,6 +1,6 @@
 import Foundation
 
-/// Something a scene draws into, in design units (the scene's 960-wide coordinate space).
+/// Something a scene draws into, in design units (960 across the main display).
 /// `DrawList` records shapes for the GPU each frame; `PixelBuffer` paints once on the CPU (the static floor).
 protocol Canvas: AnyObject {
     func plot(_ point: Point, _ color: Color)
@@ -24,6 +24,25 @@ extension Canvas {
             }
         }
     }
+}
+
+/// Draws into another canvas with everything more transparent, e.g. a fish diving out of sight.
+final class FadedCanvas: Canvas {
+    private let base: Canvas
+    private let amount: Double
+
+    init(_ base: Canvas, amount: Double) {
+        self.base = base
+        self.amount = amount
+    }
+
+    private func faded(_ color: Color) -> Color { color.opacity(Double(color.weight) / 256 * amount) }
+    func plot(_ point: Point, _ color: Color) { base.plot(point, faded(color)) }
+    func fillRect(_ origin: Point, width: Int, height: Int, _ color: Color) { base.fillRect(origin, width: width, height: height, faded(color)) }
+    func disc(_ center: Point, radius: Double, _ color: Color) { base.disc(center, radius: radius, faded(color)) }
+    func cover(with color: Color) { base.cover(with: faded(color)) }
+    func placeSurface() { base.placeSurface() }
+    func placeOverlay() { base.placeOverlay() }
 }
 
 /// Design units to device pixels: whole design pixels map to runs of device pixels, so nothing blurs.

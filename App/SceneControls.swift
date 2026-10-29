@@ -7,6 +7,8 @@ protocol SceneControls: AnyObject {
     func menuItems() -> [NSMenuItem]
     /// Runs every half minute while the scene is showing.
     func checkIn(windows: [SceneWindow], isResting: Bool)
+    /// Runs after every frame the scenes moved on, e.g. to let things cross from one display to the next.
+    func advanced(windows: [SceneWindow])
 }
 
 extension SceneKind {
