@@ -63,9 +63,17 @@ final class KeshikiController: NSObject, NSApplicationDelegate {
         settings.paused || (settings.restOnBattery && onBattery && !screensaver.isRunning)
     }
 
-    /// A display's scene runs only while its desktop is free: no app window open on it and not covered.
+    /// A display's scene runs only while its desktop is free: not covered, and depending on the setting no app window open on it.
     private func shouldRun(_ window: SceneWindow) -> Bool {
-        screensaver.isRunning || (window.isShowing && !appWindows.hasWindows(on: window.frame))
+        screensaver.isRunning || (window.isShowing && !isBlocked(window.frame))
+    }
+
+    private func isBlocked(_ screenFrame: CGRect) -> Bool {
+        switch settings.pauseWhen {
+        case "never": false
+        case "fullscreen": appWindows.isCovered(screenFrame)
+        default: appWindows.hasWindows(on: screenFrame)
+        }
     }
 
     private func drawFrame() {
