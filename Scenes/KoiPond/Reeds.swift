@@ -52,8 +52,8 @@ enum Reeds {
             let sweetFlag = chance(0.5)
             for _ in 0..<Self.cornerReeds {
                 let angle = random(0...(.pi / 2)), reach = random(0...1).squareRoot()
-                let y = size.height + 6 - sin(angle) * reach * size.height * Self.cornerRise
-                let x = shownEdge(y) - 10 + cos(angle) * reach * Self.cornerReach
+                let y = size.height + Self.cornerOut - sin(angle) * reach * size.height * Self.cornerRise
+                let x = shownEdge(y) - Self.cornerOut + cos(angle) * reach * Self.cornerReach
                 roots.append((Point(x: side == 0 ? x : size.width - x, y: y), sweetFlag))
             }
         }
@@ -65,10 +65,12 @@ enum Reeds {
     /// How far up the side a near corner's clump climbs, as a share of the pond's depth from the far edge.
     private static let cornerRise = 0.22
     private static let cornerReeds = 90
+    /// How far a near corner's clump is pushed out of the picture, in design units.
+    private static let cornerOut = 35.0
     /// True if a disc of this radius reaches into a near corner's clump, where nothing should float.
     static func inNearCorner(_ point: Point, radius: Double, size: SceneSize) -> Bool {
-        let x = min(point.x, size.width - point.x) - shownEdgeOffset(point.y, size: size) + 10
-        let y = size.height + 6 - point.y
+        let x = min(point.x, size.width - point.x) - shownEdgeOffset(point.y, size: size) + cornerOut
+        let y = size.height + cornerOut - point.y
         return pow(x / (cornerReach + radius), 2) + pow(y / (size.height * cornerRise + radius), 2) < 1
     }
 
