@@ -91,6 +91,7 @@ final class WaterStage {
         var water: SIMD4<Float>
         var sun: SIMD4<Float>
         var slant: SIMD4<Float>
+        var light: SIMD4<Float>
     }
 
     private struct Shared {
@@ -191,7 +192,7 @@ final class WaterStage {
         layer.framebufferOnly = true
         layer.maximumDrawableCount = 2
         layer.drawableSize = CGSize(width: width, height: height)
-        layer.magnificationFilter = .nearest
+        layer.magnificationFilter = .linear
         layer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
         layer.isOpaque = true
     }
@@ -232,7 +233,7 @@ final class WaterStage {
         standing = scene.takeNewStanding().flatMap { Self.stand($0, in: pond, size: size, scale: Float(scene.pixelScale), device: device) }
         uniforms = Uniforms(viewProjection: camera.viewProjection, eye: SIMD4(camera.position, Self.apparentDepth),
                             pond: SIMD4(size.x, size.y, unit, Self.swimmerDepth), water: .zero,
-                            sun: SIMD4(Self.sunDirection, 0), slant: SIMD4(Self.sunSlant.x, Self.sunSlant.y, 0, 0))
+                            sun: SIMD4(Self.sunDirection, 0), slant: SIMD4(Self.sunSlant.x, Self.sunSlant.y, 0, 0), light: .zero)
     }
 
     /// Records the scene, moves the water on (unless it's a still), draws the stage into `target` and lays the
@@ -247,8 +248,12 @@ final class WaterStage {
             clock = (clock + 1.0 / 30).truncatingRemainder(dividingBy: 600)
         }
         uniforms.slant.z = clock
-        let color = surface.color
-        uniforms.water = SIMD4(pow(Float(color.red) / 255, 2.2), pow(Float(color.green) / 255, 2.2), pow(Float(color.blue) / 255, 2.2), Self.waveRelief)
+        uniforms.slant.w = Float(surface.murk)
+        func linear(_ color: Color) -> SIMD3<Float> {
+            SIMD3(pow(Float(color.red) / 255, 2.2), pow(Float(color.green) / 255, 2.2), pow(Float(color.blue) / 255, 2.2))
+        }
+        uniforms.water = SIMD4(linear(surface.color), Self.waveRelief)
+        uniforms.light = SIMD4(linear(surface.glow) * Float(surface.glow.weight) / 256, Float(surface.sunlight))
 
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = target

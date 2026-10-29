@@ -5,6 +5,8 @@ import Foundation
 protocol Canvas: AnyObject {
     func plot(_ point: Point, _ color: Color)
     func fillRect(_ origin: Point, width: Int, height: Int, _ color: Color)
+    /// A rectangle of any size, not snapped to whole design units: for fine detail like the edge of a lily pad.
+    func fill(_ origin: Point, width: Double, height: Double, _ color: Color)
     func disc(_ center: Point, radius: Double, _ color: Color)
     /// Lays a colour over the whole frame, e.g. the time-of-day tint.
     func cover(with color: Color)
@@ -39,8 +41,31 @@ final class FadedCanvas: Canvas {
     private func faded(_ color: Color) -> Color { color.opacity(Double(color.weight) / 256 * amount) }
     func plot(_ point: Point, _ color: Color) { base.plot(point, faded(color)) }
     func fillRect(_ origin: Point, width: Int, height: Int, _ color: Color) { base.fillRect(origin, width: width, height: height, faded(color)) }
+    func fill(_ origin: Point, width: Double, height: Double, _ color: Color) { base.fill(origin, width: width, height: height, faded(color)) }
     func disc(_ center: Point, radius: Double, _ color: Color) { base.disc(center, radius: radius, faded(color)) }
     func cover(with color: Color) { base.cover(with: faded(color)) }
+    func placeSurface() { base.placeSurface() }
+    func placeOverlay() { base.placeOverlay() }
+}
+
+/// Draws into another canvas with every colour pulled towards one, e.g. a fish swimming deep in murky water.
+final class ShadedCanvas: Canvas {
+    private let base: Canvas
+    private let shade: Color
+    private let amount: Double
+
+    init(_ base: Canvas, toward shade: Color, amount: Double) {
+        self.base = base
+        self.shade = shade
+        self.amount = amount
+    }
+
+    private func shaded(_ color: Color) -> Color { color.mixed(with: shade, amount).opacity(Double(color.weight) / 256) }
+    func plot(_ point: Point, _ color: Color) { base.plot(point, shaded(color)) }
+    func fillRect(_ origin: Point, width: Int, height: Int, _ color: Color) { base.fillRect(origin, width: width, height: height, shaded(color)) }
+    func fill(_ origin: Point, width: Double, height: Double, _ color: Color) { base.fill(origin, width: width, height: height, shaded(color)) }
+    func disc(_ center: Point, radius: Double, _ color: Color) { base.disc(center, radius: radius, shaded(color)) }
+    func cover(with color: Color) { base.cover(with: color) }
     func placeSurface() { base.placeSurface() }
     func placeOverlay() { base.placeOverlay() }
 }
@@ -54,7 +79,13 @@ struct PixelScale {
         return Int((first * factor).rounded())..<Int(((first + Double(length)) * factor).rounded())
     }
 
+    /// Where a point lands, to the nearest device pixel: shapes placed by their centre move smoothly.
     func pixel(_ value: Double) -> Int {
-        Int((value.rounded() * factor).rounded())
+        Int((value * factor).rounded())
+    }
+
+    /// The device pixels a stretch covers, without snapping to whole design units.
+    func fineSpan(_ start: Double, length: Double) -> Range<Int> {
+        Int((start * factor).rounded())..<Int(((start + length) * factor).rounded())
     }
 }

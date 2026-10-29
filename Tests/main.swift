@@ -102,9 +102,11 @@ check(left.kois.count == 7 && right.kois.count == 9 && right.kois.contains { $0 
 check(left.visibility(at: Point(x: 950, y: 300)) < 0.5 && left.visibility(at: Point(x: 10, y: 300)) == 1,
       "fish dive under at an opening, not at a wall")
 
+check(LilyPad.scatter(in: SceneSize(width: 960, height: 600)).allSatisfy { !Reeds.inNearCorner($0.center, radius: $0.radius, size: SceneSize(width: 960, height: 600)) },
+      "no lily pads float in the reeds of the near corners")
 let reeds = Reeds.make(size: SceneSize(width: 960, height: 600), scale: 1.5)
-check(!reeds.sprites.isEmpty && reeds.sprites.allSatisfy { $0.root.y < 600 * 0.8 && $0.x + $0.width <= reeds.sheet.width },
-      "reeds stand along the far and side edges, never in front, each cut from the sheet")
+check(!reeds.sprites.isEmpty && reeds.sprites.allSatisfy { ($0.root.y < 600 * 0.8 || abs($0.root.x - 480) > 160) && $0.x + $0.width <= reeds.sheet.width },
+      "reeds stand along the far and side edges and in the near corners, never in front, each cut from the sheet")
 
 // Drawing
 let tiny = PixelBuffer(width: 10, height: 10)
@@ -155,7 +157,7 @@ if SceneRenderer.isAvailable {
     let scene = SceneKind.koiPond.make(aspectRatio: 16.0 / 10.0, settings: KeshikiSettings())
     for _ in 0..<90 { scene.advance(by: 1.0 / 30) }
     let frame = SceneRenderer(scene: scene)!.snapshot(scene)
-    check(frame?.width == 1440 && frame?.height == 900, "a 16:10 pond renders at 1440×900")
+    check(frame?.width == Int(960 * scene.pixelScale) && frame?.height == Int(600 * scene.pixelScale), "a 16:10 pond renders at its pixel scale (1920×1200 on power)")
 
     let pond = SceneKind.koiPond.make(aspectRatio: WaterStage.pondAspect(screenAspect: 1.6), settings: KeshikiSettings())
     let stage = WaterStage(scene: pond, screenAspect: 1.6)

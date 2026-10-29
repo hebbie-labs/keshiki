@@ -55,6 +55,12 @@ final class DrawList: Canvas {
         append(SIMD4(Float(columns.lowerBound), Float(rows.lowerBound), Float(columns.upperBound), Float(rows.upperBound)), color, disc: .zero)
     }
 
+    func fill(_ origin: Point, width rectWidth: Double, height rectHeight: Double, _ color: Color) {
+        let columns = scale.fineSpan(origin.x, length: rectWidth), rows = scale.fineSpan(origin.y, length: rectHeight)
+        guard !columns.isEmpty, !rows.isEmpty, columns.upperBound > 0, rows.upperBound > 0, columns.lowerBound < width, rows.lowerBound < height else { return }
+        append(SIMD4(Float(columns.lowerBound), Float(rows.lowerBound), Float(columns.upperBound), Float(rows.upperBound)), color, disc: .zero)
+    }
+
     /// Same pixels as `PixelBuffer.disc`: the shader repeats its row-by-row test.
     func disc(_ center: Point, radius: Double, _ color: Color) {
         let radius = radius * scale.factor

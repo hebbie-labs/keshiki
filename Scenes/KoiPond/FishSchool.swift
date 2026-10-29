@@ -65,7 +65,7 @@ final class FishSchool {
     private static let splashChance = 0.15
     private static let visitChance = 0.1
     private static let shadowOffset = Point(x: 7, y: 9)
-    private static let shadow = Color(0x0b2e26, alpha: 0.2)
+    private static let shadow = Color(0x0b2e26, alpha: 0.12)
     private static let eye = Color(0x161616)
 
     init(species: Species, in size: SceneSize) {
@@ -194,8 +194,10 @@ final class FishSchool {
     private func draw(_ member: Fish, on canvas: Canvas) {
         let points = spine(of: member)
         let bodyEnd = species.length - 3
-        for (step, segment) in points.enumerated() where step < bodyEnd {
-            canvas.plot(Point(x: segment.point.x + Self.shadowOffset.x, y: segment.point.y + Self.shadowOffset.y), Self.shadow)
+        // A soft shadow as wide as the body, a little blurred.
+        for (step, segment) in points.enumerated() where step < bodyEnd && step.isMultiple(of: 2) {
+            let half = halfWidth(at: Double(step) / Double(species.length - 1))
+            canvas.disc(Point(x: segment.point.x + Self.shadowOffset.x, y: segment.point.y + Self.shadowOffset.y), radius: half + 0.8, Self.shadow)
         }
         drawTail(points, from: bodyEnd, on: canvas)
         drawPectoralFins(points, turning: member.turning, on: canvas)

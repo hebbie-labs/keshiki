@@ -7,6 +7,7 @@ struct KeshikiSettings: Codable, Equatable {
     var rain = false
     var paused = false
     var restOnBattery = false
+    var pauseWhen = "window"    // window | fullscreen | never
     var showOnLockScreen = true
 
     init() {}
@@ -25,6 +26,7 @@ struct KeshikiSettings: Codable, Equatable {
         rain = try saved.decodeIfPresent(Bool.self, forKey: .rain) ?? defaults.rain
         paused = try saved.decodeIfPresent(Bool.self, forKey: .paused) ?? defaults.paused
         restOnBattery = try saved.decodeIfPresent(Bool.self, forKey: .restOnBattery) ?? defaults.restOnBattery
+        pauseWhen = try saved.decodeIfPresent(String.self, forKey: .pauseWhen) ?? defaults.pauseWhen
         showOnLockScreen = try saved.decodeIfPresent(Bool.self, forKey: .showOnLockScreen)
             ?? legacy.decodeIfPresent(Bool.self, forKey: .lockScreenPond) ?? defaults.showOnLockScreen
     }

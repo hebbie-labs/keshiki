@@ -51,6 +51,10 @@ extension PondWorld {
     }
 
     func drawDuckweed(on canvas: Canvas) {
-        for leaf in duckweed where !leaf.isEaten { canvas.fillRect(leaf.position, width: 2, height: 2, leaf.color) }
+        // A small round leaf with a lighter speck where it catches the sun.
+        for leaf in duckweed where !leaf.isEaten {
+            canvas.disc(leaf.position, radius: 1.1, leaf.color)
+            canvas.disc(Point(x: leaf.position.x - 0.35, y: leaf.position.y - 0.35), radius: 0.35, leaf.color.mixed(with: Color(0xffffff), 0.35))
+        }
     }
 }

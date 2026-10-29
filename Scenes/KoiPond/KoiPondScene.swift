@@ -2,7 +2,9 @@ import Foundation
 
 /// The koi pond sized for one display: the pond's world and its painted floor.
 final class KoiPondScene: LivingScene {
-    let pixelScale = 1.5
+    /// Two device pixels per design unit: finer than the pixel art needs, still light on the GPU. On battery 1.5,
+    /// which costs about a third less. The display scales the frame up smoothly to its own resolution.
+    let pixelScale = SystemConditions.isOnBattery ? 1.5 : 2.0
 
     let world: PondWorld
     private let atmosphere = Atmosphere()
@@ -20,8 +22,7 @@ final class KoiPondScene: LivingScene {
         world = PondWorld(size: size, options: options)
         world.raining = settings.rain
         floorWater = options.water
-        newFloor = PondFloor.paint(size: size, scale: pixelScale, waterName: options.water)
-        world.water.color = WaterPalette.named(options.water).deepWater
+        newFloor = Self.paintFloor(size: size, scale: pixelScale, waterName: options.water)
         newReeds = Reeds.make(size: size, scale: pixelScale)
     }
 
@@ -33,7 +34,7 @@ final class KoiPondScene: LivingScene {
         get { world.options }
         set {
             world.options = newValue
-            repaintFloorIfWaterChanged()
+            replantIfWaterChanged()
         }
     }
 
@@ -63,6 +64,12 @@ final class KoiPondScene: LivingScene {
     func draw(on canvas: Canvas, at date: Date) {
         world.draw(on: canvas, time: time)
         let timeOfDay = TimeOfDay.current(theme: settings.theme, systemDark: systemDark, date: date)
+        // The water's own colour, darkened like the light of the time of day, so night stays night.
+        let palette = WaterPalette.named(options.water)
+        world.water.color = timeOfDay.water.mixed(with: palette.water.mixed(with: Color(0x000000), (1 - timeOfDay.sunlight) * 0.7), 0.7)
+        world.water.murk = palette.murk
+        world.water.glow = timeOfDay.glow
+        world.water.sunlight = timeOfDay.sunlight
         atmosphere.draw(on: canvas, size: world.size, timeOfDay: timeOfDay, raining: settings.rain, time: time)
     }
 
@@ -81,10 +88,16 @@ final class KoiPondScene: LivingScene {
         Point(x: point.x * world.size.width, y: point.y * world.size.height)
     }
 
-    private func repaintFloorIfWaterChanged() {
+    /// The floor with the plants along the edges that come with this water.
+    private static func paintFloor(size: SceneSize, scale: Double, waterName: String) -> PixelBuffer {
+        let floor = PondFloor.paint(size: size, scale: scale, waterName: waterName)
+        PondWorld.paintRosettes(PondWorld.plantEdgeRosettes(in: size, waterName: waterName), on: floor)
+        return floor
+    }
+
+    private func replantIfWaterChanged() {
         guard options.water != floorWater else { return }
-        newFloor = PondFloor.paint(size: world.size, scale: pixelScale, waterName: options.water)
-        world.water.color = WaterPalette.named(options.water).deepWater
+        newFloor = Self.paintFloor(size: world.size, scale: pixelScale, waterName: options.water)
         floorWater = options.water
     }
 }

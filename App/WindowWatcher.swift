@@ -1,13 +1,17 @@
 import AppKit
 
 /// Knows which displays have app windows open on them, so the scene there rests while you work.
-/// A display counts as busy as soon as any window of another app lies on it, focused or not.
+/// A display counts as busy as soon as any window of another app lies on it, focused or not,
+/// and as covered once such a window fills it (fullscreen, maximised or tiled edge to edge).
 final class WindowWatcher {
     private(set) var busyDisplays: [CGRect] = []
+    private(set) var coveredDisplays: [CGRect] = []
 
     private static let recheckInterval: TimeInterval = 1
     /// Smaller windows are usually helpers (tooltips, status windows), not something you work in.
     private static let minimumSide: CGFloat = 40
+    /// Tiling leaves small gaps at the edges, a window this close to them still fills the display.
+    private static let coverTolerance: CGFloat = 10
 
     init() {
         let workspace = NSWorkspace.shared.notificationCenter
@@ -26,11 +30,20 @@ final class WindowWatcher {
         busyDisplays.contains(screenFrame)
     }
 
+    /// True if an app window fills the display with this frame, apart from menu bar and Dock.
+    func isCovered(_ screenFrame: CGRect) -> Bool {
+        coveredDisplays.contains(screenFrame)
+    }
+
     func refresh() {
         let screens = NSScreen.screens.map(\.frame)
         let primaryHeight = screens.first?.maxY ?? 0
         let windows = appWindowBounds()
         busyDisplays = screens.filter { screen in windows.contains { $0.intersects(Self.flipped(screen, primaryHeight)) } }
+        coveredDisplays = NSScreen.screens.filter { screen in
+            let visible = Self.flipped(screen.visibleFrame, primaryHeight)
+            return windows.contains { $0.insetBy(dx: -Self.coverTolerance, dy: -Self.coverTolerance).contains(visible) }
+        }.map(\.frame)
     }
 
     /// Normal windows of other apps that are on screen in the current Spaces, in top-left origin coordinates.
