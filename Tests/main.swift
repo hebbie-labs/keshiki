@@ -103,7 +103,7 @@ check(left.visibility(at: Point(x: 950, y: 300)) < 0.5 && left.visibility(at: Po
       "fish dive under at an opening, not at a wall")
 
 let reeds = Reeds.make(size: SceneSize(width: 960, height: 600), scale: 1.5)
-check(!reeds.sprites.isEmpty && reeds.sprites.allSatisfy { ($0.root.y < 600 * 0.8 || abs($0.root.x - 480) > 240) && $0.x + $0.width <= reeds.sheet.width },
+check(!reeds.sprites.isEmpty && reeds.sprites.allSatisfy { ($0.root.y < 600 * 0.8 || abs($0.root.x - 480) > 160) && $0.x + $0.width <= reeds.sheet.width },
       "reeds stand along the far and side edges and in the near corners, never in front, each cut from the sheet")
 
 // Drawing

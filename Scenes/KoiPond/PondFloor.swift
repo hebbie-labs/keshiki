@@ -6,6 +6,8 @@ import Foundation
 enum PondFloor {
     private static let cushions = 46
     private static let fallenLeaves = 160
+    /// How far the bank runs in from the edge, in design units, give or take its wobble.
+    private static let bankWidth = 26.0
     private static let stones = 220
 
     /// `scale` is device pixels per design unit; per-pixel effects are computed at full device resolution.
@@ -14,6 +16,7 @@ enum PondFloor {
         let canvas = PixelBuffer(width: Int((size.width * scale).rounded()), height: Int((size.height * scale).rounded()),
                                  scale: scale, color: palette.floor)
         paintSilt(on: canvas, palette: palette, scale: scale)
+        paintBank(on: canvas, palette: palette, scale: scale)
         paintPebbles(on: canvas, size: size, palette: palette)
         if palette.litter.isEmpty { paintStones(on: canvas, size: size, palette: palette) }
         for _ in 0..<(palette.litter.isEmpty ? 0 : fallenLeaves) { paintLeaf(on: canvas, at: size.randomPoint(marginX: 0), palette: palette) }
@@ -37,6 +40,45 @@ enum PondFloor {
                 let mottling = (sin(fx * 0.05 + sin(fy * 0.03) * 2) + sin(fy * 0.045 - fx * 0.02) + 2) / 4
                 let level = Dither.quantize(mottling * 0.55, levels: 4, x: x, y: y)
                 canvas.plot(x, y, palette.silt.opacity(level))
+            }
+        }
+    }
+
+    /// The bank all round: the floor slopes up into packed earth, lighter where it's drier, and a line of stones
+    /// lies along its foot.
+    private static func paintBank(on canvas: PixelBuffer, palette: WaterPalette, scale: Double) {
+        let width = Double(canvas.width) / scale, height = Double(canvas.height) / scale
+        let earth = palette.pebbles[1].mixed(with: palette.floor, 0.4), dry = palette.pebbles[2]
+        func foot(_ along: Double) -> Double { bankWidth * (1 + 0.3 * sin(along * 0.031) + 0.15 * sin(along * 0.11 + 2)) }
+        for y in 0..<canvas.height {
+            for x in 0..<canvas.width {
+                let fx = Double(x) / scale, fy = Double(y) / scale
+                let distances = [(fx, fy), (width - fx, fy + 300), (fy, fx + 600), (height - fy, fx + 900)]
+                guard let (distance, along) = distances.min(by: { $0.0 < $1.0 }) else { continue }
+                let reach = foot(along)
+                guard distance < reach else { continue }
+                let up = 1 - distance / reach
+                let grain = hash(x / 2, y / 2)
+                let level = Dither.quantize(up * 0.6 + grain * 0.25, levels: 5, x: x, y: y)
+                canvas.plot(x, y, earth.mixed(with: dry, level * 0.8).opacity(min(1, up * 3)))
+            }
+        }
+        for edge in 0..<4 {
+            let length = edge < 2 ? height : width
+            var along = random(0...6)
+            while along < length {
+                let offset = Double(edge) * 300, inward = foot(along + offset) - random(0...4)
+                let spot = switch edge {
+                case 0: Point(x: inward, y: along)
+                case 1: Point(x: width - inward, y: along)
+                case 2: Point(x: along, y: inward)
+                default: Point(x: along, y: height - inward)
+                }
+                let radius = random(1.8...4.2), color = palette.pebbles.randomElement()!
+                canvas.disc(spot.moved(by: 0.8, heading: 1.2), radius: radius, palette.silt.mixed(with: Color(0x000000), 0.5).opacity(0.5))
+                canvas.disc(spot, radius: radius, color)
+                canvas.disc(spot.moved(by: radius * 0.35, heading: .pi * 1.25), radius: radius * 0.45, color.mixed(with: Color(0xffffff), 0.2))
+                along += radius * random(1.2...2.2)
             }
         }
     }

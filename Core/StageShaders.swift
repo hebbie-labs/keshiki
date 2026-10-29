@@ -104,7 +104,9 @@ enum StageShaders {
         float3 clear = clearness(depth, normalize(stage.eye.xyz - in.world));
         float3 ground = pow(floorTexture.sample(floorSampler, seen).rgb, 2.2);
         float lit = 0.45 + 0.75 * saturate(dot(normalize(in.normal), stage.sun.xyz)) * light.y;
-        return float4(underWater(stage, ground * lit, stage.slant.w, light, clear, in.spot), 1);
+        // Where it's shallow there's little water to hide the floor.
+        float murk = stage.slant.w * (0.35 + 0.65 * saturate(depth / 40));
+        return float4(underWater(stage, ground * lit, murk, light, clear, in.spot), 1);
     }
 
     fragment float4 swimmersFragment(Fragment in [[stage_in]], constant Stage &stage [[buffer(1)]],
