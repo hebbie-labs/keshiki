@@ -44,7 +44,7 @@ final class Koi {
 
     private static let segments = 12
     private static let segmentLength = 5.5
-    private static let bodyWidths = [4.6, 6.6, 7.4, 7.4, 6.8, 6.0, 5.0, 4.0, 3.0, 2.3, 1.7, 1.3]
+    private static let bodyWidths = [6.2, 9.0, 10.2, 10.4, 9.8, 8.6, 7.0, 5.2, 3.6, 2.5, 1.8, 1.3]
     private static let foodSight = 420.0
     private static let callRadius = 380.0
     private static let gooseFearRadius = 90.0
@@ -58,8 +58,8 @@ final class Koi {
     /// How much of its last sideways motion each body segment keeps, and how hard the body pulls itself straight.
     private static let inertia = 0.55
     private static let stiffness = 0.12
-    private static let outline = Color(0x123a30, alpha: 0.35)
-    private static let fin = Color(0xfaf0e6, alpha: 0.45)
+    private static let outline = Color(0x123a30, alpha: 0.18)
+    private static let fin = Color(0xfaf0e6, alpha: 0.3)
 
     let favourite: Favourite
     private(set) var body: [Point]
@@ -229,15 +229,16 @@ final class Koi {
         }
     }
 
-    /// Runs of colour along the body, so patches look like patches rather than stripes.
+    /// Three round spots along the back with the base colour between them, the way a kohaku's red sits on the white.
     private static func paintPatches(for variety: Variety) -> [Patch?] {
-        var current: Patch?
-        return (0..<segments).map { index in
-            if index > 0 && chance(0.35) {
-                current = !variety.patches.isEmpty && chance(0.65) ? Patch(color: variety.patches.randomElement()!, side: random(-0.6...0.6)) : nil
-            }
-            return current
+        var patches = [Patch?](repeating: nil, count: segments)
+        guard !variety.patches.isEmpty else { return patches }
+        var index = Int.random(in: 1...2)
+        while index < 9 {
+            patches[index] = Patch(color: variety.patches.randomElement()!, side: random(-0.2...0.2))
+            index += 3
         }
+        return patches
     }
 
     // MARK: - Drawing
@@ -310,7 +311,7 @@ final class Koi {
         for index in stride(from: Self.segments - 1, through: 1, by: -1) {
             guard let patch = patches[index] else { continue }
             let width = Self.bodyWidths[index] * size
-            canvas.disc(outline[index].point.moved(by: patch.side * width * 0.5, heading: outline[index].direction + .pi / 2), radius: width * 0.72, patch.color)
+            canvas.disc(outline[index].point.moved(by: patch.side * width * 0.5, heading: outline[index].direction + .pi / 2), radius: max(width * 0.68, 2.5 * size), patch.color)
         }
         if let crown = variety.crown { canvas.disc(outline[1].point, radius: 3 * size, crown) }
     }

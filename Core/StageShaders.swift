@@ -17,6 +17,7 @@ enum StageShaders {
         float4 water;   // the water's colour (linear); how steep the waves look
         float4 sun;     // towards the sun
         float4 slant;   // how far sunlight moves sideways per unit of depth in the water (design x, y); seconds
+        float4 light;   // the glow over the far side (linear, times its strength); how strong the sunlight is
     };
 
     struct Fragment {
@@ -36,6 +37,17 @@ enum StageShaders {
     // so deep water turns blue rather than green.
     constant float3 absorption = float3(0.014, 0.009, 0.007);
     constant float3 sunColor = float3(1, 0.96, 0.88);
+    // How much the water body hides of the floor and of the fish swimming in it.
+    constant float floorMurk = 0.68;
+    constant float swimmerMurk = 0.12;
+
+    // The water body over something lit below it: its colour, darker in the shadows the light casts,
+    // brighter towards the far side where the light comes from, plus the caustics.
+    float3 underWater(constant Stage &stage, float3 below, float murk, float2 light, float3 clear, float2 spot) {
+        float3 water = stage.water.rgb * (0.5 + 0.5 * light.y);
+        float3 color = mix(below * stage.light.w, water, murk + (1 - murk) * (1 - clear.g) * 0.3);
+        return color + stage.light.rgb * pow(1 - spot.y, 2) + sunColor * light.x * 0.6 * clear * stage.light.w;
+    }
 
     // The water surface rises and falls with the waves; everything else lies still.
     vertex Fragment stageVertex(uint id [[vertex_id]], const device StageVertex *vertices [[buffer(0)]],
@@ -76,7 +88,8 @@ enum StageShaders {
         float gathered = 1 / max(1 + 1.6 * depth * curvature, 0.2);
         float shade = floating.sample(crisp, spot + stage.slant.xy * depth / size).a > 0.8 ? 1 : 0;
         float above = depth - stage.pond.w;
-        if (above > 0 && swimming.sample(crisp, spot + stage.slant.xy * above / size).a > 0.5) shade = 1;
+        // The fish's shadows reach further than the light's slant alone, so they read as shadows beside the fish.
+        if (above > 0 && swimming.sample(crisp, spot + stage.slant.xy * (above * 3 + 8) / size).a > 0.5) shade = 1;
         float lit = 1 - 0.6 * shade;
         return float2(saturate(gathered - 1) * lit, (1 - saturate(1 - gathered) * 0.45) * lit);
     }
@@ -95,8 +108,7 @@ enum StageShaders {
         float3 clear = clearness(depth, normalize(stage.eye.xyz - in.world));
         float3 ground = pow(floorTexture.sample(floorSampler, seen).rgb, 2.2);
         float lit = 0.45 + 0.75 * saturate(dot(normalize(in.normal), stage.sun.xyz)) * light.y;
-        float3 color = ground * lit * clear + stage.water.rgb * (1 - clear) * 0.3 + sunColor * light.x * 0.6 * clear;
-        return float4(color, 1);
+        return float4(underWater(stage, ground * lit, floorMurk, light, clear, in.spot), 1);
     }
 
     fragment float4 swimmersFragment(Fragment in [[stage_in]], constant Stage &stage [[buffer(1)]],
@@ -108,8 +120,7 @@ enum StageShaders {
         if (swimmer.a < 0.004) discard_fragment();
         float2 light = sunlight(stage, waves, floating, swimming, seen, depth);
         float3 clear = clearness(depth, normalize(stage.eye.xyz - in.world));
-        float3 color = swimmer.rgb * (0.55 + 0.5 * light.y) * clear + stage.water.rgb * (1 - clear) * 0.3 + sunColor * light.x * 0.6 * clear;
-        return float4(color, swimmer.a);
+        return float4(underWater(stage, swimmer.rgb * (0.55 + 0.5 * light.y), swimmerMurk, light, clear, in.spot), swimmer.a);
     }
 
     // Stands a sprite up at its root (normal: offset across and height in world units, phase), facing the camera
@@ -159,7 +170,7 @@ enum StageShaders {
         float glint = pow(saturate(dot(mirrored, stage.sun.xyz)), 1500) * 30;
         float3 water = skyColor(sky, mirrored) * fresnel + sunColor * glint;
         float4 thing = layerColor(floating, in.spot);
-        float3 thingLit = thing.rgb * (0.8 + 0.3 * saturate(dot(normal, stage.sun.xyz)));
+        float3 thingLit = thing.rgb * (0.8 + 0.3 * saturate(dot(normal, stage.sun.xyz))) * (0.4 + 0.6 * stage.light.w);
         return float4(water * (1 - thing.a) + thingLit * thing.a, saturate(fresnel + glint) * (1 - thing.a) + thing.a);
     }
     """
