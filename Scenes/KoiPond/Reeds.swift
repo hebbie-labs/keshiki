@@ -22,8 +22,8 @@ enum Reeds {
     }
 
     /// Clumps along the far edge and down the sides, with gaps; each clump is one kind of plant. They stand a little
-    /// in from the rim, which the tilted camera puts at (or just past) the screen's edge, and the near edge stays
-    /// open, so they never stand in front of the pond.
+    /// in from the rim, which the tilted camera puts at (or just past) the screen's edge. The near edge stays open
+    /// apart from its corners, so they never stand in front of the pond.
     private static func roots(in size: SceneSize) -> [(Point, Bool)] {
         let seed = random(0...100)
         func clump(_ along: Double) -> Bool? {
@@ -44,8 +44,25 @@ enum Reeds {
                 along += random(7...16)
             }
         }
+        // A clump in each near corner, framing the pond without standing in front of it. The camera looks at the
+        // near edge from closer, so it shows less of it: the corner it shows lies this far in.
+        for side in [0.0, 1.0] {
+            let sweetFlag = chance(0.5)
+            along = 0
+            while along < Self.cornerReach {
+                let y = size.height - random(8...30) - along * 0.35
+                let x = Self.nearCut * size.width * y / size.height + 6 + along
+                roots.append((Point(x: side == 0 ? x : size.width - x, y: y), sweetFlag))
+                along += random(5...10)
+            }
+        }
         return roots
     }
+
+    /// How far a near corner's clump reaches along the edge, in design units.
+    private static let cornerReach = 110.0
+    /// The share of the pond's width the camera cuts off each side at the near edge.
+    private static let nearCut = 0.12
 
     /// Sword-shaped leaves fanning from the root, a light midrib, and now and then a flower spike off to the side.
     private static func paintSweetFlag(on sheet: PixelBuffer, at root: Point) {
