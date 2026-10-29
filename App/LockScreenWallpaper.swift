@@ -2,14 +2,24 @@ import AppKit
 import ImageIO
 import UniformTypeIdentifiers
 
-/// Apps can't draw on the lock screen, but the lock screen shows the desktop picture.
+/// Before macOS 26 apps can't draw on the lock screen, but the lock screen shows the desktop picture.
 /// So a still of each scene becomes the desktop picture, and the user's own pictures come back on quit.
+/// Once the wallpaper extension is picked in System Settings, it plays the scene there itself and this stays out of the way.
 final class LockScreenWallpaper {
     private static let originalsKey = SettingsStore.originalDesktopPicturesKey
+    private static let wallpaperExtension = "com.hebbie-labs.keshiki.wallpaper"
     private let folder = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("Keshiki/LockScreen", isDirectory: true)
 
+    /// Whether the user picked our wallpaper extension anywhere (desktop, lock screen or screensaver).
+    static var extensionIsPicked: Bool {
+        let store = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/com.apple.wallpaper/Store/Index.plist")
+        guard let data = try? Data(contentsOf: store) else { return false }
+        return data.range(of: Data(wallpaperExtension.utf8)) != nil
+    }
+
     func show(_ windows: [SceneWindow]) {
+        guard !Self.extensionIsPicked else { return }
         rememberOriginals()
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         // A new file name every time; macOS caches pictures by URL.
@@ -26,7 +36,7 @@ final class LockScreenWallpaper {
     }
 
     func restoreOriginals() {
-        guard let originals = UserDefaults.standard.dictionary(forKey: Self.originalsKey) as? [String: String] else { return }
+        guard !Self.extensionIsPicked, let originals = UserDefaults.standard.dictionary(forKey: Self.originalsKey) as? [String: String] else { return }
         for screen in NSScreen.screens {
             guard let id = screen.displayID, let path = originals[String(id)] else { continue }
             try? NSWorkspace.shared.setDesktopImageURL(URL(fileURLWithPath: path), for: screen, options: [:])

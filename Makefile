@@ -1,21 +1,23 @@
 APP_NAME := Keshiki
 APP      := build/$(APP_NAME).app
 SAVER    := build/$(APP_NAME).saver
+WALLPAPER := build/$(APP_NAME)Wallpaper.appex
 VERSION  := $(shell /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' App/Info.plist)
 DMG      := build/$(APP_NAME)-$(VERSION).dmg
 ENGINE   := $(wildcard Core/*.swift Scenes/*.swift Scenes/*/*.swift)
 SWIFTC   := swiftc -O -enforce-exclusivity=unchecked -swift-version 5 -target arm64-apple-macos14.0
 
-.PHONY: app saver dmg run test clean
+.PHONY: app saver wallpaper dmg run test clean
 
-app: saver
+app: saver wallpaper
 	rm -rf $(APP)
-	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources
+	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources $(APP)/Contents/Extensions
 	$(SWIFTC) $(ENGINE) $(wildcard App/*.swift) -o $(APP)/Contents/MacOS/$(APP_NAME)
 	cp App/Info.plist $(APP)/Contents/Info.plist
 	cp Assets/AppIcon.icns $(APP)/Contents/Resources/
 	cp -R $(SAVER) $(APP)/Contents/Resources/
-	codesign --force --deep --sign - $(APP)
+	cp -R $(WALLPAPER) $(APP)/Contents/Extensions/
+	codesign --force --sign - $(APP)
 
 # The same scenes as a system screensaver (a loadable bundle).
 saver:
@@ -26,6 +28,16 @@ saver:
 	cp Saver/Info.plist $(SAVER)/Contents/Info.plist
 	cp Assets/AppIcon.icns $(SAVER)/Contents/Resources/thumbnail.icns
 	codesign --force --sign - $(SAVER)
+
+# The scenes as a system wallpaper for the lock screen (macOS 26+), through the private WallpaperExtensionKit.
+wallpaper:
+	rm -rf $(WALLPAPER)
+	mkdir -p $(WALLPAPER)/Contents/MacOS
+	swiftc -O -enforce-exclusivity=unchecked -swift-version 5 -target arm64-apple-macos26.0 -parse-as-library \
+		-module-name KeshikiWallpaper -import-objc-header Wallpaper/Bridge.h -Xlinker -e -Xlinker _NSExtensionMain \
+		$(ENGINE) $(wildcard Wallpaper/*.swift) -o $(WALLPAPER)/Contents/MacOS/KeshikiWallpaper
+	cp Wallpaper/Info.plist $(WALLPAPER)/Contents/Info.plist
+	codesign --force --sign - --entitlements Wallpaper/Wallpaper.entitlements $(WALLPAPER)
 
 dmg: app
 	rm -rf build/dmg $(DMG)

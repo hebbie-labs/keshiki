@@ -3,7 +3,6 @@ import ScreenSaver
 /// Keshiki as a system screensaver, which macOS also shows when the screen locks.
 @objc(KeshikiSaverView)
 final class KeshikiSaverView: ScreenSaverView {
-    /// Settings live with the app, which a screensaver can't read; for now it always shows the koi pond.
     private var stage: WaterStage?
     private let metalLayer = CAMetalLayer()
 
@@ -29,7 +28,8 @@ final class KeshikiSaverView: ScreenSaverView {
     override func startAnimation() {
         super.startAnimation()
         let aspect = bounds.width / max(bounds.height, 1)
-        let scene = SceneKind.koiPond.make(aspectRatio: WaterStage.pondAspect(screenAspect: aspect), settings: KeshikiSettings())
+        // The app's settings, as the app copied them into our container.
+        let scene = SharedSettings.fromFile().makeScene(aspectRatio: WaterStage.pondAspect(screenAspect: aspect))
         WaterStage.configure(metalLayer, width: scene.pixelWidth, height: Int((Double(scene.pixelWidth) / aspect).rounded()))
         stage = WaterStage(scene: scene, screenAspect: aspect)
     }

@@ -45,6 +45,11 @@ final class KeshikiController: NSObject, NSApplicationDelegate {
         screensaver.start(on: displays.windows)
     }
 
+    /// macOS 26+: the wallpaper extension plays the scene on the lock screen once it's picked in System Settings.
+    func openWallpaperSettings() {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Wallpaper-Settings.extension")!)
+    }
+
     func installScreensaver() {
         guard let saver = Bundle.main.url(forResource: "Keshiki", withExtension: "saver") else { return }
         NSWorkspace.shared.open(saver)

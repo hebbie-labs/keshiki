@@ -57,6 +57,11 @@ let general = try! JSONDecoder().decode(KeshikiSettings.self, from: wallpapers)
 check(general.theme == "night" && general.rain && !general.showOnLockScreen && general.scene == .koiPond, "Wallpapers 1.x settings carry over")
 check(try! JSONDecoder().decode(KoiPondSettings.self, from: wallpapers).mood == "playful", "the koi fields carry over from the same data")
 
+let shared = SharedSettings([SharedSettings.generalKey: Data(#"{"theme":"dusk","rain":true}"#.utf8),
+                             SharedSettings.koiPondKey: Data(#"{"water":"deep-clear"}"#.utf8)])
+check(shared.general.theme == "dusk" && shared.general.rain && shared.koiPond.water == "deep-clear", "the screensaver and the wallpaper read the app's settings")
+check(SharedSettings(["settings": Data("garbage".utf8)]).general == KeshikiSettings(), "unreadable shared settings fall back to the defaults")
+
 // Drawing
 let tiny = PixelBuffer(width: 10, height: 10)
 tiny.fillRect(Point(x: 3, y: -20), width: 2, height: 2, Color(0xffffff))
