@@ -44,7 +44,12 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         if #available(macOS 26, *) {
             lockScreen.append(MenuEntry("Animate Lock Screen…") { [unowned controller] in controller.openWallpaperSettings() })
         }
-        return [binding.toggle("Rest on Battery", \.restOnBattery)] + lockScreen + [
+        let pauseWhen = submenu("Pause When", [
+            binding.choice("Any Window Is Open", \.pauseWhen, "window"),
+            binding.choice("An App Is Fullscreen", \.pauseWhen, "fullscreen"),
+            binding.choice("Never", \.pauseWhen, "never"),
+        ])
+        return [pauseWhen, binding.toggle("Rest on Battery", \.restOnBattery)] + lockScreen + [
             MenuEntry("Install Screensaver…") { [unowned controller] in controller.installScreensaver() },
             .separator(),
             NSMenuItem(title: "Quit Keshiki", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"),
