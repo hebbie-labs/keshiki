@@ -34,7 +34,7 @@ extension PondWorld {
     private static let rise = 0.35
 
     /// On the floor where it's neither too shallow nor too deep for the light, often a few together;
-    /// in an overgrown pond also crowding the corners.
+    /// in an overgrown pond also crowding the edges all round, some grown big.
     static func plantRosettes(in size: SceneSize, waterName: String) -> [Rosette] {
         var rosettes: [Rosette] = []
         while rosettes.count < Self.rosettes {
@@ -43,20 +43,27 @@ extension PondWorld {
             guard depth > 0.08, depth < 0.65 else { continue }
             rosettes.append(rosette(at: root))
         }
-        for _ in 0..<WaterPalette.named(waterName).cornerPlants {
-            let inward = Point(x: random(8...120), y: random(8...90))
-            let root = Point(x: chance(0.5) ? inward.x : size.width - inward.x, y: chance(0.5) ? inward.y : size.height - inward.y)
-            rosettes.append(rosette(at: root))
+        for _ in 0..<WaterPalette.named(waterName).edgePlants {
+            let inward = random(6...80)
+            let root = switch Int.random(in: 0..<4) {
+            case 0: Point(x: inward, y: random(0...size.height))
+            case 1: Point(x: size.width - inward, y: random(0...size.height))
+            case 2: Point(x: random(0...size.width), y: inward)
+            default: Point(x: random(0...size.width), y: size.height - inward)
+            }
+            rosettes.append(rosette(at: root, span: chance(0.35) ? random(32...50) : random(16...28)))
         }
+        // The big ones first, so the smaller ones grow over them.
+        rosettes.sort { $0.leaves[0].length > $1.leaves[0].length }
         return rosettes
     }
 
-    private static func rosette(at root: Point) -> Rosette {
-        let span = random(16...28), count = Int.random(in: Self.leavesPerRosette)
+    private static func rosette(at root: Point, span: Double = random(16...28)) -> Rosette {
+        let count = Int.random(in: Self.leavesPerRosette)
         let leaves = (0..<count).map { index in
             let age = Double(index) / Double(count - 1)
             return Rosette.Leaf(heading: Double(index) * 2.4 + random(-0.25...0.25), length: span * (0.45 + 0.55 * age) * random(0.85...1.1),
-                                width: random(2.2...3.2) * (0.7 + 0.3 * age), phase: random(0...(2 * .pi)), age: age)
+                                width: random(2.2...3.2) * (0.7 + 0.3 * age) * max(1, span / 28), phase: random(0...(2 * .pi)), age: age)
         }
         // Old leaves first, so the young ones lie on top.
         return Rosette(root: root, leaves: leaves.reversed())

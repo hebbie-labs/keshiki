@@ -10,8 +10,8 @@ struct WaterPalette {
     let murk: Double
     /// Fallen leaves lying on the floor, browning as they rot.
     let litter: [Color]
-    /// Extra plant rosettes crowding the shallow corners.
-    let cornerPlants: Int
+    /// Extra plant rosettes crowding the shallow edges, some of them big.
+    let edgePlants: Int
 
     static func named(_ name: String) -> WaterPalette {
         name == "deep-clear" ? deepClear : pond
@@ -26,7 +26,7 @@ struct WaterPalette {
         water: Color(0x5e5a3a),
         murk: 0.5,
         litter: [Color(0x6b4a2a), Color(0x8a5e30), Color(0x5a3e26), Color(0x7a6a3a)],
-        cornerPlants: 24
+        edgePlants: 40
     )
 
     /// A deep spring-fed basin: pale sand and gravel seen through clear blue water.
@@ -38,6 +38,6 @@ struct WaterPalette {
         water: Color(0x1878b4),
         murk: 0.46,
         litter: [],
-        cornerPlants: 0
+        edgePlants: 0
     )
 }
