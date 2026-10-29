@@ -9,17 +9,21 @@ final class PondWorld {
     let size: SceneSize
     var options: KoiPondSettings
     var raining = false
-    let pads: [LilyPad]
+    var pads: [LilyPad]
     var duckweed: [DuckweedLeaf]
+    var seagrass: [SeagrassTuft]
     let schools: [FishSchool]
     let frog: Frog
     private(set) var kois: [Koi] = []
     var food: [FoodPellet] = []
+    var droplets: [Droplet] = []
     let water: WaterSurface
     private(set) var goose: Goose?
     private(set) var ball: Ball?
     private(set) var greetingSpot: Point?
     var usualSpot: Point?
+    /// Seconds the pond has been running.
+    private(set) var clock = 0.0
 
     private static let koiCount = 8
     /// The floor lies this deep at the edges and this much deeper in the middle, in design units.
@@ -33,8 +37,9 @@ final class PondWorld {
         water = WaterSurface(obstacles: pads.map { WaterSurface.Disc(center: $0.center, radius: $0.radius) },
                              depth: { [size] in Self.shallowDepth + Self.depthRange * PondFloor.depth(x: $0.x, y: $0.y, size: size) })
         duckweed = PondWorld.scatterDuckweed(in: size)
+        seagrass = PondWorld.plantSeagrass(in: size)
         schools = [.himedaka, .tanago, .oikawa, .motsugo].map { FishSchool(species: $0, in: size) }
-        frog = Frog(pad: pads[0])
+        frog = Frog()
         kois = (0..<Self.koiCount).map { Koi(index: $0, in: size) }
     }
 
@@ -42,8 +47,12 @@ final class PondWorld {
     var herdedSchool: FishSchool { schools[0] }
 
     func update(dt: Double) {
+        clock += dt
         sinkOldFood(dt: dt)
         regrowDuckweed(dt: dt)
+        moveFloating(dt: dt)
+        moveSeagrass(dt: dt)
+        moveDroplets(dt: dt)
         schools.forEach { $0.update(in: self, dt: dt) }
         kois.forEach { $0.update(in: self, dt: dt) }
         frog.update(in: self, dt: dt)
@@ -55,15 +64,17 @@ final class PondWorld {
     /// What swims below, then what floats on top. The floor is the backdrop; the water casts the shadows
     /// and the scene adds the sky.
     func draw(on canvas: Canvas, time: Double) {
+        drawSeagrass(on: canvas)
         schools.forEach { $0.draw(on: canvas) }
         kois.forEach { $0.draw(on: canvas) }
         canvas.placeSurface()
         drawFood(on: canvas)
         drawDuckweed(on: canvas)
-        canvas.placeOverlay()
-        frog.draw(on: canvas, time: time)
+        pads.forEach { $0.draw(on: canvas) }
+        frog.draw(on: canvas, time: time, pads: pads)
         ball?.draw(on: canvas)
         goose?.draw(on: canvas, time: time)
+        drawDroplets(on: canvas)
     }
 
     func touchWater(at point: Point) {

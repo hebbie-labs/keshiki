@@ -16,6 +16,12 @@ final class Ball {
         self.position = position
     }
 
+    /// A push from the waves, in design units per frame.
+    func push(_ impulse: Point) {
+        velocity.x += impulse.x
+        velocity.y += impulse.y
+    }
+
     /// Pushes the ball along the koi's heading; true if the koi touched it.
     func nudge(by koi: Koi) -> Bool {
         guard position.distance(to: koi.head) < Self.nudgeReach else { return false }

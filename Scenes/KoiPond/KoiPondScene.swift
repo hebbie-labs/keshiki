@@ -8,7 +8,7 @@ final class KoiPondScene: LivingScene {
     let world: PondWorld
     private let atmosphere = Atmosphere()
     private var newFloor: PixelBuffer?
-    private var newOverlay: PixelBuffer?
+    private var newReeds: Standing?
     private var floorWater: String
     private var time = 0.0
     var systemDark = false
@@ -23,7 +23,7 @@ final class KoiPondScene: LivingScene {
         floorWater = options.water
         newFloor = PondFloor.paint(size: size, scale: pixelScale, waterName: options.water)
         world.water.color = WaterPalette.named(options.water).deepWater
-        newOverlay = paintLilyPads()
+        newReeds = Reeds.make(size: size, scale: pixelScale)
     }
 
     var settings: KeshikiSettings {
@@ -53,10 +53,13 @@ final class KoiPondScene: LivingScene {
         return newFloor
     }
 
-    func takeNewOverlay() -> PixelBuffer? {
-        defer { newOverlay = nil }
-        return newOverlay
+    func takeNewStanding() -> Standing? {
+        defer { newReeds = nil }
+        return newReeds
     }
+
+    /// Everything floating moves, so it's all drawn each frame.
+    func takeNewOverlay() -> PixelBuffer? { nil }
 
     func draw(on canvas: Canvas, at date: Date) {
         world.draw(on: canvas, time: time)
@@ -84,12 +87,5 @@ final class KoiPondScene: LivingScene {
         newFloor = PondFloor.paint(size: world.size, scale: pixelScale, waterName: options.water)
         world.water.color = WaterPalette.named(options.water).deepWater
         floorWater = options.water
-    }
-
-    /// The lily pads float above the fish and never move, so they're painted once into a transparent layer.
-    private func paintLilyPads() -> PixelBuffer {
-        let overlay = PixelBuffer(width: pixelWidth, height: pixelHeight, scale: pixelScale, color: nil)
-        world.pads.forEach { $0.draw(on: overlay) }
-        return overlay
     }
 }

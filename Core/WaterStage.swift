@@ -97,14 +97,15 @@ final class WaterStage {
         let floor: MTLRenderPipelineState
         let swimmers: MTLRenderPipelineState
         let surface: MTLRenderPipelineState
+        let standing: MTLRenderPipelineState
         let writeDepth: MTLDepthStencilState
         let readDepth: MTLDepthStencilState
 
         init?() {
             guard let device = SceneRenderer.device, let library = try? device.makeLibrary(source: StageShaders.source, options: nil) else { return nil }
-            func pipeline(_ fragment: String, premultiplied: Bool? = nil) -> MTLRenderPipelineState? {
+            func pipeline(_ fragment: String, vertex: String = "stageVertex", premultiplied: Bool? = nil) -> MTLRenderPipelineState? {
                 let descriptor = MTLRenderPipelineDescriptor()
-                descriptor.vertexFunction = library.makeFunction(name: "stageVertex")
+                descriptor.vertexFunction = library.makeFunction(name: vertex)
                 descriptor.fragmentFunction = library.makeFunction(name: fragment)
                 descriptor.depthAttachmentPixelFormat = .depth32Float
                 let attachment = descriptor.colorAttachments[0]!
@@ -126,10 +127,12 @@ final class WaterStage {
             }
             guard let floor = pipeline("floorFragment"), let swimmers = pipeline("swimmersFragment", premultiplied: false),
                   let surface = pipeline("surfaceFragment", premultiplied: true),
+                  let standing = pipeline("standingFragment", vertex: "standingVertex"),
                   let writeDepth = depth(write: true), let readDepth = depth(write: false) else { return nil }
             self.floor = floor
             self.swimmers = swimmers
             self.surface = surface
+            self.standing = standing
             self.writeDepth = writeDepth
             self.readDepth = readDepth
         }
@@ -169,8 +172,12 @@ final class WaterStage {
     private let floorMesh: Mesh
     private let swimmersMesh: Mesh
     private let surfaceMesh: Mesh
+    /// Reeds and the like, standing up at the edges; nil if the scene has none.
+    private let standing: (sheet: MTLTexture, mesh: Mesh)?
     private var uniforms: Uniforms
     private var depth: MTLTexture?
+    /// Seconds of wind, for the swaying.
+    private var clock: Float = 0
 
     /// The pond's width to length, so the scene can be made in that shape.
     static func pondAspect(screenAspect: Double) -> Double {
@@ -222,6 +229,7 @@ final class WaterStage {
         self.floorMesh = floorMesh
         self.swimmersMesh = swimmersMesh
         self.surfaceMesh = surfaceMesh
+        standing = scene.takeNewStanding().flatMap { Self.stand($0, in: pond, size: size, scale: Float(scene.pixelScale), device: device) }
         uniforms = Uniforms(viewProjection: camera.viewProjection, eye: SIMD4(camera.position, Self.apparentDepth),
                             pond: SIMD4(size.x, size.y, unit, Self.swimmerDepth), water: .zero,
                             sun: SIMD4(Self.sunDirection, 0), slant: SIMD4(Self.sunSlant.x, Self.sunSlant.y, 0, 0))
@@ -234,7 +242,11 @@ final class WaterStage {
         guard let commands = SceneRenderer.queue?.makeCommandBuffer(), let depth = depthTexture(for: target) else { return }
         layers.record(scene, at: date)
         layers.encodeLayers(swimming: swimming, floating: floating, commands: commands)
-        if simulate { layers.encodeWater(surface, into: waves, commands: commands) }
+        if simulate {
+            layers.encodeWater(surface, into: waves, commands: commands)
+            clock = (clock + 1.0 / 30).truncatingRemainder(dividingBy: 600)
+        }
+        uniforms.slant.z = clock
         let color = surface.color
         uniforms.water = SIMD4(pow(Float(color.red) / 255, 2.2), pow(Float(color.green) / 255, 2.2), pow(Float(color.blue) / 255, 2.2), Self.waveRelief)
 
@@ -258,6 +270,11 @@ final class WaterStage {
             encoder.setDepthStencilState(shared.readDepth)
             draw(swimmersMesh, with: shared.swimmers, lift: 0, encoder: encoder)
             draw(surfaceMesh, with: shared.surface, lift: 1, encoder: encoder)
+            if let standing {
+                encoder.setDepthStencilState(shared.writeDepth)
+                encoder.setFragmentTexture(standing.sheet, index: 5)
+                draw(standing.mesh, with: shared.standing, lift: 0, encoder: encoder)
+            }
             encoder.endEncoding()
         }
         SceneRenderer.encodeCovers(layers.covers, over: target, commands: commands)
@@ -341,6 +358,27 @@ final class WaterStage {
         guard let vertexBuffer = device.makeBuffer(bytes: vertices, length: vertices.count * MemoryLayout<Vertex>.stride),
               let indexBuffer = device.makeBuffer(bytes: indices, length: indices.count * MemoryLayout<UInt32>.stride) else { return nil }
         return Mesh(vertices: vertexBuffer, indices: indexBuffer, count: indices.count)
+    }
+
+    /// One upright quad per sprite: every corner sits at the root and carries its offset in `normal`.
+    private static func stand(_ standing: Standing, in pond: Pond, size: SIMD2<Float>, scale: Float, device: MTLDevice) -> (MTLTexture, Mesh)? {
+        guard let sheet = upload(standing.sheet, to: device) else { return nil }
+        let unit = pond.width / size.x, sheetSize = SIMD2(Float(standing.sheet.width), Float(standing.sheet.height))
+        var vertices: [Vertex] = [], indices: [UInt32] = []
+        for sprite in standing.sprites {
+            let root = pond.point(at: Point(x: sprite.root.x / Double(size.x), y: sprite.root.y / Double(size.y)))
+            let width = Float(sprite.width) / scale * unit, height = Float(sprite.height) / scale * unit
+            let first = UInt32(vertices.count)
+            for (across, up) in [(Float(0), Float(0)), (1, 0), (0, 1), (1, 1)] {
+                let cell = SIMD2(Float(sprite.x) + across * Float(sprite.width), Float(sprite.y) + (1 - up) * Float(sprite.height))
+                vertices.append(Vertex(position: root, normal: SIMD3((across - 0.5) * width, up * height, Float(sprite.phase)), spot: cell / sheetSize))
+            }
+            indices += [first, first + 1, first + 2, first + 2, first + 1, first + 3]
+        }
+        guard !indices.isEmpty,
+              let vertexBuffer = device.makeBuffer(bytes: vertices, length: vertices.count * MemoryLayout<Vertex>.stride),
+              let indexBuffer = device.makeBuffer(bytes: indices, length: indices.count * MemoryLayout<UInt32>.stride) else { return nil }
+        return (sheet, Mesh(vertices: vertexBuffer, indices: indexBuffer, count: indices.count))
     }
 
     private static func upload(_ image: PixelBuffer, to device: MTLDevice) -> MTLTexture? {

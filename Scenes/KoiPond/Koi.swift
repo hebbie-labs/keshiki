@@ -50,11 +50,20 @@ final class Koi {
     private static let gooseFearRadius = 90.0
     private static let personalSpace = 18.0
     private static let heartSeconds = 2.2
+    /// How often a swimming koi stirs the surface above its back, and how fast it must swim for that.
+    private static let wakeSeconds = 0.3
+    private static let wakeSpeed = 0.5
+    /// How much of its last sideways motion each body segment keeps, and how hard the body pulls itself straight.
+    private static let inertia = 0.55
+    private static let stiffness = 0.12
     private static let outline = Color(0x123a30, alpha: 0.35)
     private static let fin = Color(0xfaf0e6, alpha: 0.45)
 
     let favourite: Favourite
     private(set) var body: [Point]
+    private var previousBody: [Point]
+    /// Leaning into the turn, -1...1: positive while turning clockwise on screen.
+    private var roll = 0.0
     private(set) var heading = 0.0
     private(set) var velocity = 0.0
     private let variety: Variety
@@ -68,6 +77,7 @@ final class Koi {
     private var excitement = 0.0
     private var heartTimer = 0.0
     private var heartCooldown = random(5...20)
+    private var wakeIn = random(0...0.3)
 
     var head: Point { body[0] }
 
@@ -77,6 +87,7 @@ final class Koi {
         patches = Self.paintPatches(for: variety)
         let start = pond.randomPoint(marginX: 120, marginY: 80)
         body = (0..<Self.segments).map { Point(x: start.x - Double($0) * Self.segmentLength, y: start.y) }
+        previousBody = body
     }
 
     func update(in world: PondWorld, dt: Double) {
@@ -84,6 +95,7 @@ final class Koi {
         swim(towards: steeringPoint(in: world), in: world.size, mood: KoiMood(world.options.mood), dt: dt)
         interact(with: world)
         followHead()
+        stirWater(in: world, dt: dt)
         heartTimer = max(0, heartTimer - dt)
         heartCooldown -= dt
     }
@@ -143,7 +155,9 @@ final class Koi {
 
     private func swim(towards point: Point, in pond: SceneSize, mood: KoiMood, dt: Double) {
         let maxTurn = turnRate * mood.turn
-        heading += clamp(angleDifference(from: heading, to: head.heading(to: point)), -maxTurn, maxTurn) * (1 + excitement) * dt * 60
+        let turn = clamp(angleDifference(from: heading, to: head.heading(to: point)), -maxTurn, maxTurn) * (1 + excitement) * dt * 60
+        heading += turn
+        roll += (clamp(turn / max(dt, 0.001) * 0.4, -1, 1) - roll) * 0.08
         let slowDownNearTarget = min(1, point.distance(to: head) / 60 + 0.25)
         let topSpeed = speed * mood.speed * (1 + excitement * 1.4) * slowDownNearTarget
         velocity += (topSpeed - velocity) * 0.04
@@ -159,16 +173,42 @@ final class Koi {
         if atFavourite || (grazed && favourite == .duckweed) || (playedWithBall && favourite == .ball) { feelHappy() }
     }
 
+    /// A koi just under the surface pushes the water up and aside; the faster, the more.
+    private func stirWater(in world: PondWorld, dt: Double) {
+        wakeIn -= dt
+        guard wakeIn <= 0 else { return }
+        wakeIn = Self.wakeSeconds
+        guard velocity > Self.wakeSpeed else { return }
+        world.addRipple(at: body[2], radius: 2 * size, strength: 0.06 * velocity * size)
+    }
+
     private func feelHappy() {
         guard heartCooldown <= 0 else { return }
         heartTimer = Self.heartSeconds
         heartCooldown = random(18...40)
     }
 
-    /// The body trails the head like a rope of fixed-length segments.
+    /// The body is a chain of points with inertia (Verlet): each segment keeps some of its own sideways motion,
+    /// stays one segment behind its leader and straightens a little, so the tail swings out in a turn and settles
+    /// behind. Only sideways: carried forward, the segments would push into the ones ahead and buckle the body.
     private func followHead() {
         let length = Self.segmentLength * size
         for index in 1..<Self.segments {
+            let current = body[index], leader = body[index - 1]
+            let axisLength = max(current.distance(to: leader), 0.001)
+            let axis = Point(x: (leader.x - current.x) / axisLength, y: (leader.y - current.y) / axisLength)
+            let motion = Point(x: current.x - previousBody[index].x, y: current.y - previousBody[index].y)
+            let along = motion.x * axis.x + motion.y * axis.y
+            body[index].x += (motion.x - axis.x * along) * Self.inertia
+            body[index].y += (motion.y - axis.y * along) * Self.inertia
+            previousBody[index] = current
+        }
+        for index in 1..<Self.segments {
+            if index >= 2 {
+                let straight = Point(x: body[index - 1].x * 2 - body[index - 2].x, y: body[index - 1].y * 2 - body[index - 2].y)
+                body[index].x += (straight.x - body[index].x) * Self.stiffness
+                body[index].y += (straight.y - body[index].y) * Self.stiffness
+            }
             let leader = body[index - 1]
             var dx = body[index].x - leader.x, dy = body[index].y - leader.y
             if dx == 0 && dy == 0 { dx = -cos(heading); dy = -sin(heading) }
@@ -223,9 +263,10 @@ final class Koi {
     private func drawFins(_ outline: [Segment], on canvas: Canvas, color: Color) {
         let shoulder = outline[2], flap = sin(tailPhase * 0.7) * 0.35
         for side in [-1.0, 1.0] {
-            let angle = shoulder.direction + side * (2.1 + flap)
+            // Leaning into a turn, the outer fin spreads and the inner one tucks in.
+            let angle = shoulder.direction + side * (2.1 + flap), spread = 1 - side * roll * 0.45
             for step in 1...3 {
-                let reach = (4 + Double(step) * 2.2) * size
+                let reach = (4 + Double(step) * 2.2) * size * spread
                 canvas.disc(shoulder.point.moved(by: reach, heading: angle), radius: (3.2 - Double(step) * 0.6) * size, color)
             }
         }
@@ -240,12 +281,13 @@ final class Koi {
 
     /// Discs per segment plus one between neighbours, so the thin tail doesn't look dotted.
     private func drawBody(_ outline: [Segment], on canvas: Canvas, color: Color, widen: Double) {
+        let lean = 1 - abs(roll) * 0.12
         for index in stride(from: Self.segments - 1, through: 0, by: -1) {
-            canvas.disc(outline[index].point, radius: Self.bodyWidths[index] * size + widen, color)
+            canvas.disc(outline[index].point, radius: Self.bodyWidths[index] * size * lean + widen, color)
             guard index < Self.segments - 1 else { continue }
             let next = outline[index + 1]
             let middle = Point(x: (outline[index].point.x + next.point.x) / 2, y: (outline[index].point.y + next.point.y) / 2)
-            canvas.disc(middle, radius: (Self.bodyWidths[index] + Self.bodyWidths[index + 1]) / 2 * size + widen, color)
+            canvas.disc(middle, radius: (Self.bodyWidths[index] + Self.bodyWidths[index + 1]) / 2 * size * lean + widen, color)
         }
     }
 
@@ -259,7 +301,11 @@ final class Koi {
     }
 
     private func drawFace(_ outline: [Segment], on canvas: Canvas) {
-        for index in 1..<8 { canvas.plot(outline[index].point, Color(0xffffff, alpha: 0.18)) }
+        // The light along the back slides to the outside of a turn as the koi leans.
+        for index in 1..<8 {
+            canvas.plot(outline[index].point.moved(by: -roll * Self.bodyWidths[index] * size * 0.4, heading: outline[index].direction + .pi / 2),
+                        Color(0xffffff, alpha: 0.18))
+        }
         for side in [-1.0, 1.0] { canvas.plot(outline[0].point.moved(by: 3.4 * size, heading: heading + side * 1.2), Color(0x111111)) }
     }
 }

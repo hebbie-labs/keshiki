@@ -62,6 +62,7 @@ final class FishSchool {
     private static let personalSpace = 10.0
     private static let turnRate = 0.045
     private static let burstSeconds = 1.5...4.0
+    private static let splashChance = 0.15
     private static let shadowOffset = Point(x: 7, y: 9)
     private static let shadow = Color(0x0b2e26, alpha: 0.2)
     private static let eye = Color(0x161616)
@@ -109,7 +110,8 @@ final class FishSchool {
         member.nextBurstIn -= dt
         var targetSpeed = species.cruiseSpeed * wanted.urgency
         if member.nextBurstIn <= 0 {
-            // Small fish swim in little bursts and glide in between.
+            // Small fish swim in little bursts and glide in between; now and then one breaks the surface.
+            if member.nextBurstIn + dt > 0 && chance(Self.splashChance) { world.addRipple(at: member.position, radius: 1, strength: 0.05) }
             targetSpeed *= 1.5
             if member.nextBurstIn < -0.25 { member.nextBurstIn = random(Self.burstSeconds) }
         }
@@ -181,7 +183,7 @@ final class FishSchool {
             canvas.plot(Point(x: segment.point.x + Self.shadowOffset.x, y: segment.point.y + Self.shadowOffset.y), Self.shadow)
         }
         drawTail(points, from: bodyEnd, on: canvas)
-        drawPectoralFins(points, on: canvas)
+        drawPectoralFins(points, turning: member.turning, on: canvas)
         // Solid discs along the spine (and between points), so a diagonal fish has no gaps.
         for (step, segment) in points.prefix(bodyEnd).enumerated() {
             let half = halfWidth(at: Double(step) / Double(species.length - 1))
@@ -206,10 +208,11 @@ final class FishSchool {
         }
     }
 
-    private func drawPectoralFins(_ points: [(point: Point, direction: Double)], on canvas: Canvas) {
-        let shoulder = points[3]
+    /// Banking into a turn, the outer fin stands out and the inner one lies against the body.
+    private func drawPectoralFins(_ points: [(point: Point, direction: Double)], turning: Double, on canvas: Canvas) {
+        let shoulder = points[3], lean = clamp(turning * 25, -1, 1)
         for side in [-1.0, 1.0] {
-            canvas.plot(shoulder.point.moved(by: species.halfWidth + 1, heading: shoulder.direction + side * 2.2), species.fin)
+            canvas.plot(shoulder.point.moved(by: species.halfWidth + 1 - side * lean, heading: shoulder.direction + side * 2.2), species.fin)
         }
     }
 

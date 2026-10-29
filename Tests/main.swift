@@ -62,6 +62,32 @@ let shared = SharedSettings([SharedSettings.generalKey: Data(#"{"theme":"dusk","
 check(shared.general.theme == "dusk" && shared.general.rain && shared.koiPond.water == "deep-clear", "the screensaver and the wallpaper read the app's settings")
 check(SharedSettings(["settings": Data("garbage".utf8)]).general == KeshikiSettings(), "unreadable shared settings fall back to the defaults")
 
+// Swimming
+let pondWorld = PondWorld(size: SceneSize(width: 960, height: 600), options: KoiPondSettings())
+for _ in 0..<600 { pondWorld.update(dt: 1.0 / 30) }
+let gaps = zip(pondWorld.kois[0].body, pondWorld.kois[0].body.dropFirst()).map { $0.distance(to: $1) }
+check(gaps.max()! - gaps.min()! < 0.01, "a koi's body keeps its segment length while it swings")
+for _ in 0..<40 {
+    pondWorld.touchWater(at: pondWorld.pads[0].center.jittered(20))
+    pondWorld.update(dt: 1.0 / 30)
+}
+let pushed = pondWorld.pads[0].offset
+for _ in 0..<900 { pondWorld.update(dt: 1.0 / 30) }
+check(hypot(pushed.x, pushed.y) > 1 && pondWorld.pads.allSatisfy { hypot($0.offset.x, $0.offset.y) < 12 }, "waves push the lily pads and their stems pull them back")
+
+// A fresh pond: its frog rests at least ten seconds before its first jump (and splash).
+let splashWorld = PondWorld(size: SceneSize(width: 960, height: 600), options: KoiPondSettings())
+splashWorld.splash(at: Point(x: 400, y: 300), droplets: 10, power: 50)
+let thrown = splashWorld.droplets.count
+for _ in 0..<60 { splashWorld.update(dt: 1.0 / 30) }
+check(thrown == 10 && splashWorld.droplets.isEmpty, "a splash throws droplets that fall back into the water")
+let padCanvas = DrawList(width: 1440, height: 900, scale: 1.5)
+for _ in 0..<40 { LilyPad.scatter(in: SceneSize(width: 960, height: 600)).forEach { $0.draw(on: padCanvas) } }
+check(padCanvas.primitives.allSatisfy { $0.bounds.x < $0.bounds.z && $0.bounds.y < $0.bounds.w }, "lily pads of any shape draw clean rows, slit and all")
+let reeds = Reeds.make(size: SceneSize(width: 960, height: 600), scale: 1.5)
+check(!reeds.sprites.isEmpty && reeds.sprites.allSatisfy { $0.root.y < 600 * 0.8 && $0.x + $0.width <= reeds.sheet.width },
+      "reeds stand along the far and side edges, never in front, each cut from the sheet")
+
 // Drawing
 let tiny = PixelBuffer(width: 10, height: 10)
 tiny.fillRect(Point(x: 3, y: -20), width: 2, height: 2, Color(0xffffff))

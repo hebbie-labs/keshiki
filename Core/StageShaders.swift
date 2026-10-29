@@ -16,7 +16,7 @@ enum StageShaders {
         float4 pond;    // width and height in design units, world units per design unit, depth of the swimmers
         float4 water;   // the water's colour (linear); how steep the waves look
         float4 sun;     // towards the sun
-        float4 slant;   // how far sunlight moves sideways per unit of depth in the water (design x, y)
+        float4 slant;   // how far sunlight moves sideways per unit of depth in the water (design x, y); seconds
     };
 
     struct Fragment {
@@ -110,6 +110,33 @@ enum StageShaders {
         float3 clear = clearness(depth, normalize(stage.eye.xyz - in.world));
         float3 color = swimmer.rgb * (0.55 + 0.5 * light.y) * clear + stage.water.rgb * (1 - clear) * 0.3 + sunColor * light.x * 0.6 * clear;
         return float4(color, swimmer.a);
+    }
+
+    // Stands a sprite up at its root (normal: offset across and height in world units, phase), facing the camera
+    // square on, so the pixel art stays undistorted however steeply the camera looks down, and sways it in the
+    // wind, more towards the top.
+    vertex Fragment standingVertex(uint id [[vertex_id]], const device StageVertex *vertices [[buffer(0)]],
+                                   constant Stage &stage [[buffer(1)]]) {
+        StageVertex v = vertices[id];
+        float3 forward = normalize(v.position - stage.eye.xyz);
+        float3 across = normalize(cross(forward, float3(0, 1, 0)));
+        float3 up = cross(across, forward);
+        float height = v.normal.y, time = stage.slant.z;
+        float sway = (sin(time * 1.1 + v.normal.z) + 0.4 * sin(time * 2.7 + v.normal.z * 3)) * 0.1 * height * height;
+        float3 position = v.position + across * (v.normal.x + sway) + up * height;
+        Fragment out;
+        out.position = stage.viewProjection * float4(position, 1);
+        out.world = position;
+        out.normal = float3(0, 1, 0);
+        out.spot = v.spot;
+        return out;
+    }
+
+    // The sheet is sRGB, so it samples linear; its pixels are either there or not.
+    fragment float4 standingFragment(Fragment in [[stage_in]], texture2d<float> sheet [[texture(5)]]) {
+        float4 color = sheet.sample(crisp, in.spot);
+        if (color.a < 0.5) discard_fragment();
+        return float4(color.rgb, 1);
     }
 
     // The sky the water reflects, stored as a panorama.
