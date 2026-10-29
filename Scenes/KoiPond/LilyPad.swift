@@ -47,7 +47,7 @@ struct LilyPad {
                               radius: random(18...44), notchAngle: random(0...(2 * .pi)),
                               hasFlower: chance(0.3), petalTurn: random(0...(2 * .pi)),
                               shade: chance(0.08) ? shades[3] : shades[Int.random(in: 0...2)], wobble: random(0...(2 * .pi)))
-            if !pads.contains(where: { pad.overlaps($0) }) { pads.append(pad) }
+            if !pads.contains(where: { pad.overlaps($0) }), !Reeds.inNearCorner(pad.center, radius: pad.radius, size: size) { pads.append(pad) }
         }
         return pads
     }

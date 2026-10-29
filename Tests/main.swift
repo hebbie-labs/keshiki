@@ -102,6 +102,8 @@ check(left.kois.count == 7 && right.kois.count == 9 && right.kois.contains { $0 
 check(left.visibility(at: Point(x: 950, y: 300)) < 0.5 && left.visibility(at: Point(x: 10, y: 300)) == 1,
       "fish dive under at an opening, not at a wall")
 
+check(LilyPad.scatter(in: SceneSize(width: 960, height: 600)).allSatisfy { !Reeds.inNearCorner($0.center, radius: $0.radius, size: SceneSize(width: 960, height: 600)) },
+      "no lily pads float in the reeds of the near corners")
 let reeds = Reeds.make(size: SceneSize(width: 960, height: 600), scale: 1.5)
 check(!reeds.sprites.isEmpty && reeds.sprites.allSatisfy { ($0.root.y < 600 * 0.8 || abs($0.root.x - 480) > 160) && $0.x + $0.width <= reeds.sheet.width },
       "reeds stand along the far and side edges and in the near corners, never in front, each cut from the sheet")

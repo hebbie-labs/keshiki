@@ -47,7 +47,7 @@ enum Reeds {
         // A thick, rounded clump in each near corner, framing the pond without standing in front of it: it fills a
         // quarter oval from the corner the camera shows on out of the picture. The camera looks at the near edge
         // from closer, so it shows less of it.
-        func shownEdge(_ y: Double) -> Double { Self.nearCut * size.width * y / size.height }
+        func shownEdge(_ y: Double) -> Double { shownEdgeOffset(y, size: size) }
         for side in [0.0, 1.0] {
             let sweetFlag = chance(0.5)
             for _ in 0..<Self.cornerReeds {
@@ -64,7 +64,17 @@ enum Reeds {
     private static let cornerReach = 150.0
     /// How far up the side a near corner's clump climbs, as a share of the pond's depth from the far edge.
     private static let cornerRise = 0.22
-    private static let cornerReeds = 45
+    private static let cornerReeds = 90
+    /// True if a disc of this radius reaches into a near corner's clump, where nothing should float.
+    static func inNearCorner(_ point: Point, radius: Double, size: SceneSize) -> Bool {
+        let x = min(point.x, size.width - point.x) - shownEdgeOffset(point.y, size: size) + 10
+        let y = size.height + 6 - point.y
+        return pow(x / (cornerReach + radius), 2) + pow(y / (size.height * cornerRise + radius), 2) < 1
+    }
+
+    /// How far in from the side the camera shows the pond at this depth into it.
+    private static func shownEdgeOffset(_ y: Double, size: SceneSize) -> Double { nearCut * size.width * y / size.height }
+
     /// The share of the pond's width the camera cuts off each side at the near edge.
     private static let nearCut = 0.12
 
