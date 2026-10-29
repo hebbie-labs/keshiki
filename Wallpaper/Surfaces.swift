@@ -95,16 +95,17 @@ final class Surfaces {
     }
 
     /// The picture on the tile in System Settings.
-    func thumbnail() -> URL? {
+    /// System Settings keeps the URL it got, so a fresh one overwrites the file in place instead of removing it.
+    func thumbnail(fresh: Bool = false) -> URL? {
         let url = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Caches/koi-pond.png")
-        if FileManager.default.fileExists(atPath: url.path) { return url }
+        if !fresh, FileManager.default.fileExists(atPath: url.path) { return url }
         let aspect = 16.0 / 10
         guard let stage = WaterStage(scene: settings.makeScene(aspectRatio: WaterStage.pondAspect(screenAspect: aspect)), screenAspect: aspect) else { return nil }
         for _ in 0..<60 { stage.scene.advance(by: 1 / Self.framesPerSecond) }
         guard let image = stage.snapshot(width: 480, height: 300),
               let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else { return nil }
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        return (try? png.write(to: url)) == nil ? nil : url
+        return (try? png.write(to: url, options: .atomic)) == nil ? nil : url
     }
 
     /// A new stage in the surface's shape, with a first frame drawn before the agent shows it.
@@ -124,7 +125,7 @@ final class Surfaces {
 
     private func settingsChanged() {
         settings = SharedSettings.fromApp()
-        try? FileManager.default.removeItem(at: URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Caches/koi-pond.png"))
+        _ = thumbnail(fresh: true)
         for surface in surfaces.values {
             layOut(surface, scale: surface.layer.contentsScale)
         }
