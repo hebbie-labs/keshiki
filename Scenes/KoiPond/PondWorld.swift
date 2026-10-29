@@ -45,7 +45,7 @@ final class PondWorld {
         water = WaterSurface(obstacles: pads.map { WaterSurface.Disc(center: $0.center, radius: $0.radius) },
                              depth: { [size] in Self.shallowDepth + Self.depthRange * PondFloor.depth(x: $0.x, y: $0.y, size: size) })
         duckweed = PondWorld.scatterDuckweed(in: size)
-        rosettes = PondWorld.plantRosettes(in: size)
+        rosettes = PondWorld.plantRosettes(in: size, waterName: options.water)
         schools = [.himedaka, .tanago, .oikawa, .motsugo].map { FishSchool(species: $0, in: size) }
         frog = Frog()
         kois = (0..<Self.koiCount).map { Koi(index: $0, in: size) }

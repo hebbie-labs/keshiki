@@ -34,7 +34,7 @@ final class KoiPondScene: LivingScene {
         get { world.options }
         set {
             world.options = newValue
-            repaintFloorIfWaterChanged()
+            replantIfWaterChanged()
         }
     }
 
@@ -88,9 +88,10 @@ final class KoiPondScene: LivingScene {
         Point(x: point.x * world.size.width, y: point.y * world.size.height)
     }
 
-    private func repaintFloorIfWaterChanged() {
+    private func replantIfWaterChanged() {
         guard options.water != floorWater else { return }
         newFloor = PondFloor.paint(size: world.size, scale: pixelScale, waterName: options.water)
+        world.rosettes = PondWorld.plantRosettes(in: world.size, waterName: options.water)
         floorWater = options.water
     }
 }
