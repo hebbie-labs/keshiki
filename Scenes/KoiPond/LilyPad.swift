@@ -118,7 +118,7 @@ struct LilyPad {
 
     /// The edge curls up a little: it catches the light on the sun's side and darkens on the other.
     private func drawRim(on canvas: Canvas, at top: Point, notchAngle: Double) {
-        let steps = Int(2.5 * .pi * radius)
+        let steps = Int(2 * .pi * radius)
         for step in 0..<steps {
             let angle = Double(step) / Double(steps) * 2 * .pi
             guard !inSlit(angle, notchAngle: notchAngle) else { continue }
@@ -128,7 +128,7 @@ struct LilyPad {
         }
     }
 
-    /// Fine veins from the stem, lighter than the leaf, curving a little and forking halfway, fading towards the edge.
+    /// Fine veins from the stem, lighter than the leaf, curving a little, fading towards the edge.
     private func drawVeins(on canvas: Canvas, at top: Point, notchAngle: Double) {
         for vein in 1..<16 {
             let angle = notchAngle + Double(vein) / 16 * 2 * .pi
@@ -136,9 +136,6 @@ struct LilyPad {
                 let along = step / radius, bend = sin(along * 3 + wobble + Double(vein)) * 0.05
                 let color = shade.vein.mixed(with: shade.rim, 0.4).opacity(0.85 * (1 - along * 0.8))
                 canvas.disc(top.moved(by: step, heading: angle + bend), radius: 0.4, color)
-                if along > 0.5 {
-                    canvas.disc(top.moved(by: step, heading: angle + bend + (along - 0.5) * 0.25), radius: 0.25, color)
-                }
             }
         }
     }
@@ -171,14 +168,10 @@ struct LilyPad {
     private func drawPetal(on canvas: Canvas, from center: Point, heading: Double, length: Double, width: Double, blush: Double) {
         let sunny = (cos(heading - .pi * 1.25) + 1) / 2
         let base = Color(0xfbeef2), tip = Color(0xe2558a).mixed(with: base, 1 - blush)
-        for step in stride(from: 0.8, through: length, by: 0.6) {
+        for step in stride(from: 0.8, through: length, by: 0.8) {
             let t = step / length
             let color = base.mixed(with: tip, pow(t, 1.5)).mixed(with: Color(0x7a2a48), 0.18 * (1 - sunny))
             canvas.disc(center.moved(by: step, heading: heading), radius: width * pow(sin(.pi * pow(t, 0.75)), 0.8), color)
-        }
-        // A fine crease down the middle, fading towards the tip.
-        for step in stride(from: 1.2, through: length * 0.8, by: 0.9) {
-            canvas.disc(center.moved(by: step, heading: heading), radius: 0.22, Color(0xc8476f, alpha: 0.35 * blush * (1 - step / length)))
         }
     }
 }

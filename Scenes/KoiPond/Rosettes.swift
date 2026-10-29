@@ -136,8 +136,9 @@ extension PondWorld {
         let color = Self.oldLeaf.mixed(with: Self.youngLeaf, 1 - leaf.age * 0.8).mixed(with: Self.leafRim, 0.25 * (1 - sunny))
         for part in points { canvas.disc(part.spot, radius: part.width + 0.35, Self.leafRim.opacity(0.7)) }
         for part in points { canvas.disc(part.spot, radius: part.width, color.mixed(with: Self.youngLeaf, 0.2 * part.t * sunny)) }
-        for part in points where part.t > 0.15 && part.t < 0.9 {
-            canvas.disc(part.spot, radius: max(0.22, step * 0.35), color.mixed(with: Color(0xd8e8a0), 0.35))
+        // The midrib is too fine to see in the coarse drawing done every frame.
+        for part in points where step < 0.5 && part.t > 0.15 && part.t < 0.9 {
+            canvas.disc(part.spot, radius: 0.22, color.mixed(with: Color(0xd8e8a0), 0.35))
         }
     }
 }
