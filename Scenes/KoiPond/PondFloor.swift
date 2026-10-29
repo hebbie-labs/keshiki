@@ -1,10 +1,12 @@
 import Foundation
 
 /// Paints the bare floor once: silt, pebbles and cushions of moss and algae. The plants that move are drawn live
-/// (`Seagrass`, and the reeds standing at the edge). The water over it, and the light and shadows
+/// (the plant rosettes, and the reeds standing at the edge). The water over it, and the light and shadows
 /// in it, are drawn live at the floor's depth.
 enum PondFloor {
     private static let cushions = 46
+    private static let fallenLeaves = 160
+    private static let stones = 220
 
     /// `scale` is device pixels per design unit; per-pixel effects are computed at full device resolution.
     static func paint(size: SceneSize, scale: Double, waterName: String) -> PixelBuffer {
@@ -13,6 +15,8 @@ enum PondFloor {
                                  scale: scale, color: palette.floor)
         paintSilt(on: canvas, palette: palette, scale: scale)
         paintPebbles(on: canvas, size: size, palette: palette)
+        if palette.litter.isEmpty { paintStones(on: canvas, size: size, palette: palette) }
+        for _ in 0..<(palette.litter.isEmpty ? 0 : fallenLeaves) { paintLeaf(on: canvas, at: size.randomPoint(marginX: 0), palette: palette) }
         for _ in 0..<cushions { paintCushion(on: canvas, at: plantSpot(in: size), palette: palette) }
         return canvas
     }
@@ -41,6 +45,30 @@ enum PondFloor {
         for _ in 0..<900 {
             let spot = chance(0.6) ? plantSpot(in: size) : size.randomPoint(marginX: 0)
             canvas.fillRect(spot, width: Int.random(in: 1...3), height: Int.random(in: 1...2), palette.pebbles.randomElement()!.opacity(random(0.4...0.9)))
+        }
+    }
+
+    /// Rounded stones on clear water's gravel: lit on the sun's side, a dark crescent on the other.
+    private static func paintStones(on canvas: PixelBuffer, size: SceneSize, palette: WaterPalette) {
+        for _ in 0..<stones {
+            let spot = size.randomPoint(marginX: 0), radius = random(1.2...3.5)
+            let color = palette.pebbles.randomElement()!
+            canvas.disc(spot.moved(by: 0.6, heading: 1.2), radius: radius, palette.silt.mixed(with: Color(0x000000), 0.45).opacity(0.5))
+            canvas.disc(spot, radius: radius, color)
+            canvas.disc(spot.moved(by: radius * 0.35, heading: .pi * 1.25), radius: radius * 0.5, color.mixed(with: Color(0xffffff), 0.25))
+        }
+    }
+
+    /// A leaf that sank to the bottom: a pointed oval with a midrib, darker the longer it has lain there.
+    private static func paintLeaf(on canvas: PixelBuffer, at spot: Point, palette: WaterPalette) {
+        let length = random(3...6), heading = random(0...(2 * .pi))
+        let color = palette.litter.randomElement()!.mixed(with: palette.silt, random(0...0.5)).opacity(random(0.6...0.95))
+        for step in stride(from: -length, through: length, by: 0.5) {
+            let t = step / length
+            canvas.disc(spot.moved(by: step, heading: heading), radius: length * 0.42 * (1 - t * t), color)
+        }
+        for step in stride(from: -length, through: length, by: 0.5) {
+            canvas.disc(spot.moved(by: step, heading: heading), radius: 0.25, color.mixed(with: palette.silt, 0.6))
         }
     }
 

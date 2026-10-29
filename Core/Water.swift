@@ -21,6 +21,8 @@ final class WaterSurface {
     /// The glow over the far side of the pond (its alpha is how strong) and how strong the sunlight is, 0...1.
     var glow = Color(0xffffff, alpha: 0)
     var sunlight = 1.0
+    /// How much the water body hides of the floor, 0...1.
+    var murk = 0.68
     private var drops: [Drop] = []
 
     /// Most disturbances one frame carries to the GPU.

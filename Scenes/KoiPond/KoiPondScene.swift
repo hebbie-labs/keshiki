@@ -64,7 +64,10 @@ final class KoiPondScene: LivingScene {
     func draw(on canvas: Canvas, at date: Date) {
         world.draw(on: canvas, time: time)
         let timeOfDay = TimeOfDay.current(theme: settings.theme, systemDark: systemDark, date: date)
-        world.water.color = timeOfDay.water.mixed(with: WaterPalette.named(options.water).deepWater, 0.25)
+        // The water's own colour, darkened like the light of the time of day, so night stays night.
+        let palette = WaterPalette.named(options.water)
+        world.water.color = timeOfDay.water.mixed(with: palette.water.mixed(with: Color(0x000000), (1 - timeOfDay.sunlight) * 0.7), 0.7)
+        world.water.murk = palette.murk
         world.water.glow = timeOfDay.glow
         world.water.sunlight = timeOfDay.sunlight
         atmosphere.draw(on: canvas, size: world.size, timeOfDay: timeOfDay, raining: settings.rain, time: time)
