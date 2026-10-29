@@ -44,16 +44,23 @@ enum Reeds {
                 along += random(7...16)
             }
         }
-        // A clump in each near corner, framing the pond without standing in front of it. The camera looks at the
-        // near edge from closer, so it shows less of it: the corner it shows lies this far in.
+        // A thick clump in each near corner, framing the pond without standing in front of it: along the near edge
+        // and up the side, right at the edge the camera shows and on out of the picture. The camera looks at the
+        // near edge from closer, so it shows less of it.
+        func shownEdge(_ y: Double) -> Double { Self.nearCut * size.width * y / size.height }
         for side in [0.0, 1.0] {
             let sweetFlag = chance(0.5)
-            along = 0
+            func place(_ x: Double, _ y: Double) { roots.append((Point(x: side == 0 ? x : size.width - x, y: y), sweetFlag)) }
+            along = -10
             while along < Self.cornerReach {
-                let y = size.height - random(8...30) - along * 0.35
-                let x = Self.nearCut * size.width * y / size.height + 6 + along
-                roots.append((Point(x: side == 0 ? x : size.width - x, y: y), sweetFlag))
-                along += random(5...10)
+                let y = size.height - random(2...16)
+                place(shownEdge(y) + along, y)
+                along += random(4...7)
+            }
+            var y = size.height - 10
+            while y > size.height * Self.cornerRise {
+                place(shownEdge(y) + random(2...16), y)
+                y -= random(4...7)
             }
         }
         return roots
@@ -61,6 +68,8 @@ enum Reeds {
 
     /// How far a near corner's clump reaches along the edge, in design units.
     private static let cornerReach = 110.0
+    /// How far up the sides a near corner's clump climbs, as a share of the pond's depth from the far edge.
+    private static let cornerRise = 0.45
     /// The share of the pond's width the camera cuts off each side at the near edge.
     private static let nearCut = 0.12
 
