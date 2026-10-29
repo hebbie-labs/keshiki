@@ -4,6 +4,8 @@ import AppKit
 final class SceneDisplays {
     private(set) var windows: [SceneWindow] = []
     private var kind: SceneKind?
+    /// Scenes render finer on power than on battery, so a switch rebuilds them.
+    private var builtOnBattery = SystemConditions.isOnBattery
 
     var windowNumbers: Set<Int> {
         Set(windows.map(\.windowNumber))
@@ -13,10 +15,13 @@ final class SceneDisplays {
         windows.map(\.scene)
     }
 
-    /// Rebuilding starts fresh scenes, so it only happens for a new kind of scene or when the displays changed.
+    /// Rebuilding starts fresh scenes, so it only happens for a new kind of scene, when the displays changed, or on a
+    /// switch between power and battery.
     func show(_ kind: SceneKind, settings: KeshikiSettings, configure: (LivingScene) -> Void) {
-        guard kind != self.kind || windows.map(\.frame) != NSScreen.screens.map(\.frame) else { return }
+        let onBattery = SystemConditions.isOnBattery
+        guard kind != self.kind || windows.map(\.frame) != NSScreen.screens.map(\.frame) || onBattery != builtOnBattery else { return }
         self.kind = kind
+        builtOnBattery = onBattery
         windows.forEach { $0.close() }
         let unitsPerPoint = Self.unitsPerPoint
         windows = NSScreen.screens.compactMap { screen in

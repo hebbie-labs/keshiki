@@ -36,6 +36,8 @@ struct LilyPad {
     ]
     /// Half the opening of the slit running from the edge to the stem, in radians.
     private static let slit = 0.11
+    /// The leaf is filled in rows this tall, in design units, so its edge stays smooth.
+    private static let row = 0.5
 
     /// Pads may hang over the edges, like in a real pond.
     static func scatter(in size: SceneSize) -> [LilyPad] {
@@ -50,13 +52,14 @@ struct LilyPad {
         return pads
     }
 
-    /// Drawn every frame, as the pads drift; the water casts their shadows. A pad lies flat on the water: one colour,
-    /// a slit to the stem where the water shows through, fine light veins and a slightly raised rim.
+    /// Drawn every frame, as the pads drift; the water casts their shadows. A pad lies flat on the water: lighter on
+    /// the sun's side, a slit to the stem where the water shows through, fine veins and a slightly raised rim.
     func draw(on canvas: Canvas) {
         let top = position, notchAngle = notchAngle + turn
         drawLeaf(on: canvas, at: top, notchAngle: notchAngle)
         drawRim(on: canvas, at: top, notchAngle: notchAngle)
         drawVeins(on: canvas, at: top, notchAngle: notchAngle)
+        canvas.disc(top, radius: 1.2, shade.leaf.mixed(with: Color(0x0f2a14), 0.4))
         if hasFlower { drawLotus(on: canvas, at: Point(x: top.x + radius * 0.15, y: top.y - radius * 0.1)) }
     }
 
@@ -75,7 +78,7 @@ struct LilyPad {
     /// Row by row: each row's ends come from the (slightly wavy) edge, and the slit cuts its stretch out of the
     /// middle, worked out from the slit's two sides rather than pixel by pixel.
     private func drawLeaf(on canvas: Canvas, at top: Point, notchAngle: Double) {
-        let reach = Int(radius) + 1
+        let reach = Int(radius) + 1  // design units
         let (lowSide, highSide) = (notchAngle - Self.slit, notchAngle + Self.slit)
         /// Where a row crosses one side of the slit; nil if that side runs away from the row.
         func crossing(_ side: Double, _ dy: Double) -> Double? {
@@ -84,12 +87,15 @@ struct LilyPad {
             return dy / rise * cos(side)
         }
         func fill(_ from: Double, _ to: Double, row: Int) {
-            let start = from.rounded()
-            guard to - start >= 1 else { return }
-            canvas.fillRect(Point(x: top.x.rounded() + start, y: top.y.rounded() + Double(row)), width: Int((to - start).rounded()), height: 1, shade.leaf)
+            guard to - from > 0.2 else { return }
+            let dy = Double(row) * Self.row
+            // Lighter towards the far side, where the sun is.
+            let color = shade.leaf.mixed(with: shade.rim, 0.22 * (0.5 - dy / radius / 2)).mixed(with: Color(0x10301a), 0.15 * (0.5 + dy / radius / 2))
+            canvas.fill(Point(x: top.x + from, y: top.y + dy), width: to - from, height: Self.row, color)
         }
-        for row in -reach...reach {
-            let dy = Double(row) + 0.5
+        let rows = Int(Double(reach) / Self.row)
+        for row in -rows...rows {
+            let dy = Double(row) * Self.row + Self.row / 2
             guard abs(dy) < radius else { continue }
             let half = (radius * radius - dy * dy).squareRoot()
             // The wavy edge may pull in past a row near the top or bottom; that row then has nothing on that side.
@@ -110,24 +116,29 @@ struct LilyPad {
         }
     }
 
-    /// The edge curls up a little and catches the light on the sun's side (the far side stays plain).
+    /// The edge curls up a little: it catches the light on the sun's side and darkens on the other.
     private func drawRim(on canvas: Canvas, at top: Point, notchAngle: Double) {
-        let steps = Int(2 * .pi * radius)
+        let steps = Int(2.5 * .pi * radius)
         for step in 0..<steps {
             let angle = Double(step) / Double(steps) * 2 * .pi
             guard !inSlit(angle, notchAngle: notchAngle) else { continue }
             let sunny = (cos(angle - .pi * 1.25) + 1) / 2
-            guard sunny > 0.35 else { continue }
-            canvas.plot(top.moved(by: edge(at: angle) - 0.8, heading: angle), shade.rim.opacity(0.25 + 0.6 * sunny))
+            let color = sunny > 0.4 ? shade.rim.opacity(0.2 + 0.7 * sunny) : Color(0x0f2a14, alpha: 0.35 * (1 - sunny))
+            canvas.disc(top.moved(by: edge(at: angle) - 0.6, heading: angle), radius: 0.5, color)
         }
     }
 
-    /// Fine veins from the stem, lighter than the leaf, fading out before the edge.
+    /// Fine veins from the stem, lighter than the leaf, curving a little and forking halfway, fading towards the edge.
     private func drawVeins(on canvas: Canvas, at top: Point, notchAngle: Double) {
-        for vein in 1..<10 {
-            let angle = notchAngle + Double(vein) / 10 * 2 * .pi
-            for step in stride(from: radius * 0.15, to: radius * 0.75, by: 1.6) {
-                canvas.plot(top.moved(by: step, heading: angle), shade.vein.opacity(0.55 * (1 - step / radius)))
+        for vein in 1..<16 {
+            let angle = notchAngle + Double(vein) / 16 * 2 * .pi
+            for step in stride(from: radius * 0.1, to: radius * 0.88, by: 0.9) {
+                let along = step / radius, bend = sin(along * 3 + wobble + Double(vein)) * 0.05
+                let color = shade.vein.mixed(with: shade.rim, 0.4).opacity(0.85 * (1 - along * 0.8))
+                canvas.disc(top.moved(by: step, heading: angle + bend), radius: 0.4, color)
+                if along > 0.5 {
+                    canvas.disc(top.moved(by: step, heading: angle + bend + (along - 0.5) * 0.25), radius: 0.25, color)
+                }
             }
         }
     }

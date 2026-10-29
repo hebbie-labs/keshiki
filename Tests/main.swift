@@ -155,7 +155,7 @@ if SceneRenderer.isAvailable {
     let scene = SceneKind.koiPond.make(aspectRatio: 16.0 / 10.0, settings: KeshikiSettings())
     for _ in 0..<90 { scene.advance(by: 1.0 / 30) }
     let frame = SceneRenderer(scene: scene)!.snapshot(scene)
-    check(frame?.width == 1440 && frame?.height == 900, "a 16:10 pond renders at 1440×900")
+    check(frame?.width == Int(960 * scene.pixelScale) && frame?.height == Int(600 * scene.pixelScale), "a 16:10 pond renders at its pixel scale (1920×1200 on power)")
 
     let pond = SceneKind.koiPond.make(aspectRatio: WaterStage.pondAspect(screenAspect: 1.6), settings: KeshikiSettings())
     let stage = WaterStage(scene: pond, screenAspect: 1.6)

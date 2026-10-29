@@ -2,7 +2,9 @@ import Foundation
 
 /// The koi pond sized for one display: the pond's world and its painted floor.
 final class KoiPondScene: LivingScene {
-    let pixelScale = 1.5
+    /// Two device pixels per design unit: finer than the pixel art needs, still light on the GPU. On battery 1.5,
+    /// which costs about a third less. The display scales the frame up smoothly to its own resolution.
+    let pixelScale = SystemConditions.isOnBattery ? 1.5 : 2.0
 
     let world: PondWorld
     private let atmosphere = Atmosphere()
@@ -21,7 +23,6 @@ final class KoiPondScene: LivingScene {
         world.raining = settings.rain
         floorWater = options.water
         newFloor = PondFloor.paint(size: size, scale: pixelScale, waterName: options.water)
-        world.water.color = WaterPalette.named(options.water).deepWater
         newReeds = Reeds.make(size: size, scale: pixelScale)
     }
 
@@ -63,6 +64,9 @@ final class KoiPondScene: LivingScene {
     func draw(on canvas: Canvas, at date: Date) {
         world.draw(on: canvas, time: time)
         let timeOfDay = TimeOfDay.current(theme: settings.theme, systemDark: systemDark, date: date)
+        world.water.color = timeOfDay.water.mixed(with: WaterPalette.named(options.water).deepWater, 0.25)
+        world.water.glow = timeOfDay.glow
+        world.water.sunlight = timeOfDay.sunlight
         atmosphere.draw(on: canvas, size: world.size, timeOfDay: timeOfDay, raining: settings.rain, time: time)
     }
 
@@ -84,7 +88,6 @@ final class KoiPondScene: LivingScene {
     private func repaintFloorIfWaterChanged() {
         guard options.water != floorWater else { return }
         newFloor = PondFloor.paint(size: world.size, scale: pixelScale, waterName: options.water)
-        world.water.color = WaterPalette.named(options.water).deepWater
         floorWater = options.water
     }
 }

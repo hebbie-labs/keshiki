@@ -20,16 +20,21 @@ struct SeagrassTuft {
 
 extension PondWorld {
     private static let tufts = 13
-    private static let bladesPerTuft = 7...11
-    /// From the root deep down, murky with water, to the tip up in the light. Half see-through, as the leaves are,
-    /// which also keeps the water from casting a second, flat shadow of them.
-    private static let seagrass = [Color(0x274a3a, alpha: 0.5), Color(0x356a44, alpha: 0.5), Color(0x4f8f4a, alpha: 0.5),
-                                   Color(0x74b456, alpha: 0.5), Color(0x9fd36a, alpha: 0.5)]
-    private static let shadow = Color(0x0b2e26, alpha: 0.22)
+    private static let bladesPerTuft = 4...6
+    /// A leaf from its root deep down, murky with water, to the tip up in the light: its middle and its lighter edge.
+    private static let leafMiddle = [Color(0x24503a), Color(0x2f6640), Color(0x3c7c44), Color(0x4f924a), Color(0x68a852)]
+    private static let leafEdge = [Color(0x3a6a48), Color(0x4a8450), Color(0x5e9c56), Color(0x78b460), Color(0x96cc6e)]
+    /// What a leaf darkens towards where it twists its narrow side up.
+    private static let twisted = Color(0x10281c)
+    /// Faint discs that overlap into a soft shadow.
+    private static let shadow = Color(0x0b2e26, alpha: 0.07)
     /// The sun's slant through the water: how far a shadow lands from what casts it, per unit of height.
     private static let sunSlant = Point(x: -0.1, y: 0.34)
-    /// How high up a blade's tip reaches, compared to its length.
-    private static let rise = 0.6
+    /// How high up a blade's tip reaches, compared to its length: seen from above, the leaves mostly stream along
+    /// in the current rather than stand up.
+    private static let rise = 0.3
+    /// Half the width of a leaf at its root; it narrows towards a rounded tip.
+    private static let halfWidth = 2.2
 
     /// Where the floor is neither too shallow nor too deep for the light.
     static func plantSeagrass(in size: SceneSize) -> [SeagrassTuft] {
@@ -41,7 +46,7 @@ extension PondWorld {
             let depth = PondFloor.depth(x: root.x, y: root.y, size: size)
             guard depth > 0.15, depth < 0.7 else { continue }
             let blades = (0..<Int.random(in: Self.bladesPerTuft)).map { _ in
-                SeagrassTuft.Blade(root: root.jittered(5, 4), length: random(30...60), lean: flow + random(-0.8...0.8), phase: random(0...(2 * .pi)))
+                SeagrassTuft.Blade(root: root.jittered(4, 3), length: random(40...75), lean: flow + random(-0.6...0.6), phase: random(0...(2 * .pi)))
             }
             tufts.append(SeagrassTuft(root: root, blades: blades))
         }
@@ -66,8 +71,8 @@ extension PondWorld {
         }
     }
 
-    /// Each blade rises from the floor, curls with the current (sideways, stronger towards the tip) and leans away
-    /// from the koi. Its shadow on the floor drifts off it the higher the blade reaches: what tells it stands up.
+    /// Each leaf is a flat ribbon that sways as a whole in the current, more towards the tip, and leans away from the
+    /// koi. Where it twists it turns its narrow side up and darkens. Its soft shadow drifts off it the higher it reaches.
     func drawSeagrass(on canvas: Canvas) {
         for shadows in [true, false] {
             for tuft in seagrass {
@@ -77,23 +82,33 @@ extension PondWorld {
     }
 
     private func drawBlade(_ blade: SeagrassTuft.Blade, of tuft: SeagrassTuft, asShadow: Bool, on canvas: Canvas) {
-        let current = clock * 0.9
+        let current = clock * 0.8 + blade.phase
         var point = blade.root
-        // Steps of two design pixels with 2×2 squares: a solid ribbon, half the shapes of single steps.
-        let steps = Int(blade.length / 2)
+        var leaf: [(spot: Point, t: Double, width: Double, twist: Double)] = []
+        let steps = Int(blade.length)
         for step in 0..<steps {
             let t = Double(step) / Double(steps)
-            let heading = blade.lean + sin(current + blade.phase + t * 2.5) * 0.5 * t
-            point = point.moved(by: 2, heading: heading)
-            var spot = Point(x: point.x + tuft.bend.x * t * t, y: point.y + tuft.bend.y * t * t)
-            if asShadow {
-                // A soft shadow: every other step, a little bigger.
-                guard step.isMultiple(of: 2) else { continue }
-                let height = t * blade.length * Self.rise
-                spot = Point(x: spot.x + Self.sunSlant.x * height, y: spot.y + Self.sunSlant.y * height)
-                canvas.fillRect(spot, width: 3, height: 3, Self.shadow)
-            } else {
-                canvas.fillRect(spot, width: 2, height: 2, Self.seagrass[min(Self.seagrass.count - 1, Int(t * Double(Self.seagrass.count)))])
+            let heading = blade.lean + sin(current - t * 1.6) * 0.45 * t + sin(current * 0.53 + 1) * 0.15
+            point = point.moved(by: 1, heading: heading)
+            let twist = 0.55 + 0.45 * abs(cos(current * 0.7 + t * 3))
+            let taper = t < 0.85 ? 1 - t * 0.45 : (1 - 0.85 * 0.45) * ((1 - t) / 0.15).squareRoot()
+            leaf.append((Point(x: point.x + tuft.bend.x * t * t, y: point.y + tuft.bend.y * t * t), t, Self.halfWidth * taper * twist, twist))
+        }
+        if asShadow {
+            for (index, part) in leaf.enumerated() where index.isMultiple(of: 2) {
+                let height = part.t * blade.length * Self.rise
+                canvas.disc(Point(x: part.spot.x + Self.sunSlant.x * height, y: part.spot.y + Self.sunSlant.y * height),
+                            radius: part.width + 1.5 + part.t * 1.5, Self.shadow)
+            }
+            return
+        }
+        // The whole edge first, then the whole middle over it, so the ribbon is smooth rather than scaled.
+        for (colors, share) in [(Self.leafEdge, 1.0), (Self.leafMiddle, 0.55)] {
+            for part in leaf {
+                // Blended between the two nearest colours, so the leaf shades smoothly from root to tip.
+                let along = part.t * Double(colors.count - 1), lower = Int(along)
+                let shade = colors[lower].mixed(with: colors[min(colors.count - 1, lower + 1)], along - Double(lower))
+                canvas.disc(part.spot, radius: part.width * share, shade.mixed(with: Self.twisted, (1 - part.twist) * 0.8))
             }
         }
     }

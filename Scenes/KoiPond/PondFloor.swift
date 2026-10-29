@@ -56,16 +56,36 @@ enum PondFloor {
         }
     }
 
-    /// A soft cushion of moss (greens) or algae (olives), domed: lighter on top, darker at the rim.
+    /// A soft cushion of moss (greens) or algae (olives), painted pixel by pixel: an uneven outline that fades out
+    /// at the edge, domed (dark at the rim, lit on the side towards the light) and clumpy all over.
     private static func paintCushion(on canvas: PixelBuffer, at center: Point, palette: WaterPalette) {
-        let radius = random(5...16)
+        let radius = random(6...18)
         let colors = chance(0.6) ? Array(palette.plants[0...3])
             : [Color(0x4e5a2a), Color(0x6b7a3a), Color(0x8a9a48), Color(0xa8b860)].map { $0.mixed(with: palette.silt, 0.25) }
-        for _ in 0..<Int(radius * radius * 0.8) {
-            let reach = Double.random(in: 0...1).squareRoot() * radius, angle = random(0...(2 * .pi))
-            let dome = 1 - reach / radius
-            let shade = min(colors.count - 1, Int(dome * Double(colors.count - 1) + random(0...0.9)))
-            canvas.disc(Point(x: center.x + cos(angle) * reach * 1.3, y: center.y + sin(angle) * reach), radius: random(0.7...1.6), colors[shade])
+        let lobes = (random(0...6.3), random(0...6.3), Double.random(in: 0.05...0.12))
+        let scale = canvas.scale.factor
+        let reach = Int(radius * 1.5 * scale)
+        let cx = Int(center.x * scale), cy = Int(center.y * scale)
+        for y in (cy - reach)...(cy + reach) {
+            for x in (cx - reach)...(cx + reach) {
+                let dx = (Double(x - cx)) / scale, dy = (Double(y - cy)) / scale
+                let angle = atan2(dy, dx * 0.77)
+                let edge = radius * (1 + lobes.2 * sin(angle * 2 + lobes.0) + 0.07 * sin(angle * 5 + lobes.1) + 0.04 * sin(angle * 11 + lobes.0))
+                let distance = hypot(dx * 0.77, dy) / edge
+                guard distance < 1 else { continue }
+                // Clumps two device pixels across, so it reads as moss rather than as noise.
+                let clump = hash(x / 2, y / 2)
+                let dome = 1 - distance * distance
+                let lit = clamp(dome * 0.8 + (-dx * 0.2 - dy * 0.98) / radius * 0.35 + (clump - 0.5) * 0.5, 0, 0.999)
+                let fade = min(1, (1 - distance) * 4) * (0.75 + 0.25 * clump)
+                canvas.plot(x, y, colors[Int(lit * Double(colors.count))].opacity(fade))
+            }
         }
+    }
+
+    /// A steady pseudo-random 0..<1 per cell.
+    private static func hash(_ x: Int, _ y: Int) -> Double {
+        let value = sin(Double(x) * 12.9898 + Double(y) * 78.233) * 43758.5453
+        return value - value.rounded(.down)
     }
 }

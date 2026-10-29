@@ -18,13 +18,47 @@ enum TimeOfDay: String {
         }
     }
 
+    /// A light veil over everything, fish and lily pads included; the water itself carries most of the mood.
     var tint: Color {
         switch self {
-        case .dawn: return Color(0xffaabe, alpha: 0.13)
-        case .day: return Color(0xffffe6, alpha: 0.03)
-        case .golden: return Color(0xffaa3c, alpha: 0.18)
-        case .dusk: return Color(0x5a2878, alpha: 0.30)
-        case .night: return Color(0x050a28, alpha: 0.56)
+        case .dawn: return Color(0xffd2c8, alpha: 0.05)
+        case .day: return Color(0xffffe6, alpha: 0.02)
+        case .golden: return Color(0xffc864, alpha: 0.10)
+        case .dusk: return Color(0x4a3c78, alpha: 0.16)
+        case .night: return Color(0x050a28, alpha: 0.38)
+        }
+    }
+
+    /// The colour of the water body.
+    var water: Color {
+        switch self {
+        case .dawn: return Color(0x86c298)
+        case .day: return Color(0x379c70)
+        case .golden: return Color(0x8aae58)
+        case .dusk: return Color(0x6c6c94)
+        case .night: return Color(0x1e2c4c)
+        }
+    }
+
+    /// The glow over the far side of the pond, where the light comes from.
+    var glow: Color {
+        switch self {
+        case .dawn: return Color(0xfff0dc, alpha: 0.18)
+        case .day: return Color(0xc8ffe6, alpha: 0.22)
+        case .golden: return Color(0xfff5aa, alpha: 0.30)
+        case .dusk: return Color(0xc8c3e6, alpha: 0.15)
+        case .night: return Color(0x506e9b, alpha: 0.15)
+        }
+    }
+
+    /// How strong the sunlight is under water: the caustics and how bright the floor and the fish are.
+    var sunlight: Double {
+        switch self {
+        case .dawn: return 0.8
+        case .day: return 1
+        case .golden: return 0.9
+        case .dusk: return 0.6
+        case .night: return 0.3
         }
     }
 
@@ -42,7 +76,7 @@ final class Atmosphere {
 
     private var fireflies: [Firefly] = []
 
-    private static let fireflyCount = 24
+    private static let fireflyCount = 14
     private static let rainDimming = Color(0x283c50, alpha: 0.16)
     /// Fireflies hover a little above the water; their mirror image shows this far below them on screen.
     private static let reflectionOffset = 9.0
@@ -64,10 +98,11 @@ final class Atmosphere {
             fireflies[index] = fly
             let glow = (sin(time * 2 + fly.phase) + 1) / 2
             let mirrored = Point(x: fly.position.x, y: fly.position.y + Self.reflectionOffset)
-            canvas.disc(mirrored, radius: 2, Color(0xf0ff8c, alpha: glow * 0.1))
+            canvas.disc(mirrored, radius: 4, Color(0xf0ff8c, alpha: glow * 0.08))
             canvas.plot(mirrored, Color(0xfaffaa, alpha: glow * 0.45))
-            canvas.disc(fly.position, radius: 3, Color(0xf0ff8c, alpha: glow * 0.18))
-            canvas.fillRect(fly.position, width: 2, height: 2, Color(0xfaffaa, alpha: glow))
+            canvas.disc(fly.position, radius: 7, Color(0xf0ff8c, alpha: glow * 0.18))
+            canvas.disc(fly.position, radius: 4.5, Color(0xf5ffa0, alpha: glow * 0.4))
+            canvas.disc(fly.position, radius: 3, Color(0xfcffd2, alpha: glow))
         }
     }
 }

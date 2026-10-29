@@ -30,6 +30,10 @@ final class PondWorld {
     private(set) var clock = 0.0
 
     private static let koiCount = 8
+    /// Koi deeper than this swim below the seagrass.
+    private static let underSeagrass = 0.6
+    /// The darkness deep water adds to its colour.
+    private static let deepWater = Color(0x0a1a1c)
     /// The floor lies this deep at the edges and this much deeper in the middle, in design units.
     private static let shallowDepth = 8.0
     private static let depthRange = 52.0
@@ -68,10 +72,16 @@ final class PondWorld {
 
     /// What swims below, then what floats on top. The floor is the backdrop; the water casts the shadows
     /// and the scene adds the sky.
+    /// The koi's shadows lie on the floor under everything. Deep koi swim under the seagrass and the small fish,
+    /// the others over them; deepest first. Deep down they turn towards the colour of the water they're seen through.
     func draw(on canvas: Canvas, time: Double) {
+        let byDepth = kois.sorted { $0.depth > $1.depth }
+        let murk = water.color.mixed(with: Self.deepWater, 0.35)
+        kois.forEach { $0.drawShadow(on: canvas, visibility: visibility(at: $0.head)) }
+        for koi in byDepth where koi.depth > Self.underSeagrass { koi.draw(on: canvas, murk: murk, visibility: visibility(at: koi.head)) }
         drawSeagrass(on: canvas)
         schools.forEach { $0.draw(on: canvas, visibility: visibility(at: $0.center)) }
-        kois.forEach { $0.draw(on: canvas, visibility: visibility(at: $0.head)) }
+        for koi in byDepth where koi.depth <= Self.underSeagrass { koi.draw(on: canvas, murk: murk, visibility: visibility(at: koi.head)) }
         canvas.placeSurface()
         drawFood(on: canvas)
         drawDuckweed(on: canvas)
