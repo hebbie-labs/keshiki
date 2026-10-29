@@ -42,6 +42,8 @@ final class Surfaces {
             let surfaces = Unmanaged<Surfaces>.fromOpaque(observer).takeUnretainedValue()
             DispatchQueue.main.async { surfaces.settingsChanged() }
         }, SharedSettings.changedNotification as CFString, nil, .deliverImmediately)
+        // System Settings caches the tile with our thumbnail's URL and rarely asks again, so the file must be there.
+        _ = thumbnail()
     }
 
     /// Shows the wallpaper on the surface `id` and returns the id of the layer tree the agent should host.
