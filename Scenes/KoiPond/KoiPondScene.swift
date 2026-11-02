@@ -68,6 +68,7 @@ final class KoiPondScene: LivingScene {
         let palette = WaterPalette.named(options.water)
         world.water.color = timeOfDay.water.mixed(with: palette.water.mixed(with: Color(0x000000), (1 - timeOfDay.sunlight) * 0.7), 0.7)
         world.water.murk = palette.murk
+        world.water.current = palette.lotus ? 1 : 0
         world.water.glow = timeOfDay.glow
         world.water.sunlight = timeOfDay.sunlight
         atmosphere.draw(on: canvas, size: world.size, timeOfDay: timeOfDay, raining: settings.rain, time: time)

@@ -23,6 +23,8 @@ final class WaterSurface {
     var sunlight = 1.0
     /// How much the water body hides of the floor, 0...1.
     var murk = 0.68
+    /// How strongly the current draws its net of light on the floor, 0 for none.
+    var current = 0.0
     private var drops: [Drop] = []
 
     /// Most disturbances one frame carries to the GPU.

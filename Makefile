@@ -14,7 +14,7 @@ app: saver wallpaper
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources $(APP)/Contents/Extensions
 	$(SWIFTC) $(ENGINE) $(wildcard App/*.swift) -o $(APP)/Contents/MacOS/$(APP_NAME)
 	cp App/Info.plist $(APP)/Contents/Info.plist
-	cp Assets/AppIcon.icns $(APP)/Contents/Resources/
+	cp Assets/AppIcon.icns THIRD_PARTY_NOTICES.md $(APP)/Contents/Resources/
 	cp -R $(SAVER) $(APP)/Contents/Resources/
 	cp -R $(WALLPAPER) $(APP)/Contents/Extensions/
 	codesign --force --sign - $(APP)
@@ -42,7 +42,7 @@ wallpaper:
 dmg: app
 	rm -rf build/dmg $(DMG)
 	mkdir -p build/dmg
-	cp -R $(APP) build/dmg/
+	cp -R $(APP) THIRD_PARTY_NOTICES.md build/dmg/
 	ln -s /Applications build/dmg/Applications
 	hdiutil create -volname "$(APP_NAME)" -srcfolder build/dmg -fs HFS+ -format UDZO $(DMG)
 	rm -rf build/dmg

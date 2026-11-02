@@ -50,11 +50,16 @@ extension PondWorld {
         duckweed.filter { !$0.isEaten }.randomElement()?.position
     }
 
-    func drawDuckweed(on canvas: Canvas) {
-        // A small round leaf with a lighter speck where it catches the sun.
-        for leaf in duckweed where !leaf.isEaten {
-            canvas.disc(leaf.position, radius: 1.1, leaf.color)
-            canvas.disc(Point(x: leaf.position.x - 0.35, y: leaf.position.y - 0.35), radius: 0.35, leaf.color.mixed(with: Color(0xffffff), 0.35))
+    func drawDuckweed(on canvas: Canvas, lotus: Bool = false) {
+        // A small round leaf with a lighter speck where it catches the sun. In a lotus pond bigger and brighter,
+        // in the style of Nagomi (see THIRD_PARTY_NOTICES.md).
+        for (index, leaf) in duckweed.enumerated() where !leaf.isEaten {
+            let color = lotus ? Self.lotusDuckweed[index % Self.lotusDuckweed.count] : leaf.color
+            let radius = lotus ? 1.2 + Double(index % 5) * 0.35 : 1.1
+            canvas.disc(leaf.position, radius: radius, color)
+            canvas.disc(Point(x: leaf.position.x - radius * 0.32, y: leaf.position.y - radius * 0.32), radius: radius * 0.32, color.mixed(with: Color(0xffffff), 0.35))
         }
     }
+
+    private static let lotusDuckweed = [Color(0x7ed957), Color(0x5cbf3a), Color(0xa6e86b), Color(0x3f9a2e)]
 }

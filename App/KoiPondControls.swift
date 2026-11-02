@@ -35,7 +35,8 @@ final class KoiPondControls: SceneControls {
         let binding = MenuBinding(get: { [unowned self] in options }, set: { [unowned self] in options = $0 })
         return [
             submenu("Koi Mood", [binding.choice("Calm", \.mood, "calm"), binding.choice("Playful", \.mood, "playful")]),
-            submenu("Water", [binding.choice("Koi Pond", \.water, "pond"), binding.choice("Deep Clear", \.water, "deep-clear")]),
+            submenu("Water", [binding.choice("Koi Pond", \.water, "pond"), binding.choice("Deep Clear", \.water, "deep-clear"),
+                              binding.choice("Lotus", \.water, "lotus")]),
             submenu("Visitors", [
                 MenuEntry("Invite the Goose") { [unowned self] in invite(.goose) },
                 MenuEntry("Drop a Temari Ball") { [unowned self] in invite(.ball) },

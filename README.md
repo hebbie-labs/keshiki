@@ -83,6 +83,11 @@ its first launch.
 - **Click the water** and they swim over. **⌥-click** drops food.
 - **Calm or playful** mood, a *Deep Clear* water theme, and visitors: invite
   the goose or drop a temari ball.
+- **Lotus** water theme: a bare mint-green bed under clear water with a moving
+  net of light, dark lotus leaves with pink star flowers, bright duckweed and
+  colourful tiny fish. It is ported from [Nagomi](https://github.com/msk1039/nagomi)
+  by Mayank Kadam under the PolyForm Noncommercial License, so Keshiki may only
+  be used and shared noncommercially (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
 
 ## Development
 
