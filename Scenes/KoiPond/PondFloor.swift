@@ -15,6 +15,10 @@ enum PondFloor {
         let palette = WaterPalette.named(waterName)
         let canvas = PixelBuffer(width: Int((size.width * scale).rounded()), height: Int((size.height * scale).rounded()),
                                  scale: scale, color: palette.floor)
+        if palette.lotus {
+            paintBed(on: canvas, palette: palette, scale: scale)
+            return canvas
+        }
         paintSilt(on: canvas, palette: palette, scale: scale)
         paintBank(on: canvas, palette: palette, scale: scale)
         paintPebbles(on: canvas, size: size, palette: palette)
@@ -31,6 +35,25 @@ enum PondFloor {
         let unevenness = (sin(x * 0.021 + y * 0.013) + sin(x * 0.008 - y * 0.017)) * 0.08
         let value = clamp(bowl + unevenness, 0, 1)
         return value * value * (3 - 2 * value)
+    }
+
+    /// A bare lotus pond bed: lit towards the near side, shaded towards the far one and darker all round the edge,
+    /// with dark specks of grit.
+    private static func paintBed(on canvas: PixelBuffer, palette: WaterPalette, scale: Double) {
+        let width = Double(canvas.width), height = Double(canvas.height)
+        let edgeShade = Color(0x0a2a20), grit = 2 * scale
+        for y in 0..<canvas.height {
+            for x in 0..<canvas.width {
+                let u = Double(x) / width - 0.5, v = Double(y) / height
+                let far = 1 - v
+                let shaded = Dither.quantize(far * far * (3 - 2 * far) * 0.8, levels: 12, x: x, y: y)
+                let edge = clamp((hypot(u, (v - 0.5) * 1.25) - 0.48) / 0.34, 0, 1)
+                var color = palette.floor.mixed(with: palette.silt, shaded)
+                color = color.mixed(with: edgeShade, Dither.quantize(edge * edge * (3 - 2 * edge) * 0.57, levels: 8, x: x, y: y))
+                if hash(Int(Double(x) / grit), Int(Double(y) / grit)) > 0.975 { color = color.mixed(with: palette.pebbles[0], 0.3) }
+                canvas.plot(x, y, color)
+            }
+        }
     }
 
     private static func paintSilt(on canvas: PixelBuffer, palette: WaterPalette, scale: Double) {

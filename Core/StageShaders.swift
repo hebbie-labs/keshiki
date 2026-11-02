@@ -18,6 +18,7 @@ enum StageShaders {
         float4 sun;     // towards the sun
         float4 slant;   // how far sunlight moves sideways per unit of depth in the water (design x, y); seconds; how much the water hides of the floor
         float4 light;   // the glow over the far side (linear, times its strength); how strong the sunlight is
+        float4 current; // how strongly the current draws its net of light on the floor (0 for none)
     };
 
     struct Fragment {
@@ -46,6 +47,51 @@ enum StageShaders {
         float3 water = stage.water.rgb * (0.5 + 0.5 * light.y);
         float3 color = mix(below * stage.light.w, water, murk + (1 - murk) * (1 - clear.g) * 0.3);
         return color + stage.light.rgb * pow(1 - spot.y, 2) + sunColor * light.x * 0.6 * clear * stage.light.w;
+    }
+
+    float2 cellHash(float2 p) {
+        return fract(sin(float2(dot(p, float2(127.1, 311.7)), dot(p, float2(269.5, 183.3)))) * 43758.5453);
+    }
+
+    float valueNoise(float2 p) {
+        float2 cell = floor(p), f = fract(p);
+        f = f * f * (3 - 2 * f);
+        return mix(mix(cellHash(cell).x, cellHash(cell + float2(1, 0)).x, f.x),
+                   mix(cellHash(cell + float2(0, 1)).x, cellHash(cell + float2(1, 1)).x, f.x), f.y);
+    }
+
+    // How far `p` lies from the border between its two nearest cells; the cells' hearts wander slowly.
+    float cellBorder(float2 p, float time) {
+        float2 cell = floor(p), local = fract(p);
+        float nearest = 10, second = 10;
+        for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+                float2 neighbour = float2(x, y), seed = cellHash(cell + neighbour);
+                float2 heart = 0.5 + 0.32 * sin(6.2831853 * seed + time * 0.15);
+                float reach = length(neighbour + heart - local) / mix(0.68, 1.38, cellHash(cell + neighbour + float2(41.7, 13.2)).x);
+                if (reach < nearest) { second = nearest; nearest = reach; } else if (reach < second) { second = reach; }
+            }
+        }
+        return second - nearest;
+    }
+
+    // The net of light a slowly moving, gently rippled surface draws on the floor of a calm pond, in patches,
+    // and the broad bands of light of the long swells. Ported from Nagomi (see THIRD_PARTY_NOTICES.md).
+    float3 currentNet(constant Stage &stage, float2 spot) {
+        float time = stage.slant.z;
+        float2 p = spot * stage.pond.xy;
+        p += float2(sin(p.y * 0.0125 + time * 0.2), cos(p.x * 0.011 - time * 0.17)) * 22;
+        float2 warp = float2(valueNoise(p * 0.005), valueNoise(p * 0.006 + float2(19.4, 7.8))) - 0.5;
+        p += warp * 96 + float2(sin(p.y * 0.0125 + warp.y * 5.2), cos(p.x * 0.011 + warp.x * 5.6)) * 22;
+        float broad = cellBorder(p / 1800, time * 0.3), thin = cellBorder(p / 40 + float2(9.6, 4.3), time);
+        float width = valueNoise(p * 0.009 + float2(3.7, 11.2));
+        float swell = 1 - smoothstep(0.032 + width * 0.01, 0.125 + width * 0.022, broad);
+        float swellCore = 1 - smoothstep(0.01, 0.052, broad);
+        float patch = smoothstep(0.48, 0.75, valueNoise(p * 0.004 + float2(-5.1, 17.8)));
+        float vein = (1 - smoothstep(0.03, 0.105, thin)) * patch, core = (1 - smoothstep(0.008, 0.043, thin)) * patch;
+        float3 net = swell * float3(0.022, 0.068, 0.047) + swellCore * float3(0.052, 0.155, 0.108)
+            + (vein * float3(0.01, 0.034, 0.023) + core * float3(0.028, 0.09, 0.061)) * 0.9;
+        return net * stage.current.x;
     }
 
     // The water surface rises and falls with the waves; everything else lies still.
@@ -106,7 +152,8 @@ enum StageShaders {
         float lit = 0.45 + 0.75 * saturate(dot(normalize(in.normal), stage.sun.xyz)) * light.y;
         // Where it's shallow there's little water to hide the floor.
         float murk = stage.slant.w * (0.35 + 0.65 * saturate(depth / 40));
-        return float4(underWater(stage, ground * lit, murk, light, clear, in.spot), 1);
+        float3 net = stage.current.x > 0 ? currentNet(stage, seen) * stage.light.w : float3(0);
+        return float4(underWater(stage, ground * lit, murk, light, clear, in.spot) + net, 1);
     }
 
     fragment float4 swimmersFragment(Fragment in [[stage_in]], constant Stage &stage [[buffer(1)]],

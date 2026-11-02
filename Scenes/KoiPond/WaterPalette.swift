@@ -12,9 +12,16 @@ struct WaterPalette {
     let litter: [Color]
     /// Extra plant rosettes crowding the shallow edges, some of them big.
     let edgePlants: Int
+    /// A bare bed under calm water drawn with a moving net of light, dark lotus leaves with star flowers and bright
+    /// tiny fish, in the style of Nagomi (see THIRD_PARTY_NOTICES.md).
+    var lotus = false
 
     static func named(_ name: String) -> WaterPalette {
-        name == "deep-clear" ? deepClear : pond
+        switch name {
+        case "deep-clear": deepClear
+        case "lotus": lotus
+        default: pond
+        }
     }
 
     /// A garden pond: dark mud, fallen leaves and soft olive-brown water you see a little way into.
@@ -39,5 +46,19 @@ struct WaterPalette {
         murk: 0.46,
         litter: [],
         edgePlants: 0
+    )
+
+    /// A lotus pond: a bare bed, mint where it's lit and deep green where it's shaded, under clear teal water.
+    /// `floor` is the lit end, `silt` the shaded one, `pebbles[0]` the specks in it.
+    static let lotus = WaterPalette(
+        floor: Color(0x72ad97),
+        silt: Color(0x215c3b),
+        pebbles: [Color(0x05110a)],
+        plants: [],
+        water: Color(0x2f8a74),
+        murk: 0.2,
+        litter: [],
+        edgePlants: 0,
+        lotus: true
     )
 }

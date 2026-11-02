@@ -38,6 +38,12 @@ final class FishSchool {
         static let motsugo = Species(back: Color(0x6b6a50), flank: Color(0xc6c2a2), fin: Color(0xb8b496, alpha: 0.6),
                                      marking: Color(0x4d4c3c), markingStyle: .spineStripe,
                                      length: 12, halfWidth: 1.6, count: 10, cruiseSpeed: 0.38)
+
+        /// The same fish in other colours; the markings take the colour of the back.
+        func painted(_ colors: Colors) -> Species {
+            Species(back: colors.back, flank: colors.flank, fin: colors.fin, marking: colors.back, markingStyle: markingStyle,
+                    length: length, halfWidth: halfWidth, count: count, cruiseSpeed: cruiseSpeed)
+        }
     }
 
     private struct Fish {
@@ -85,11 +91,25 @@ final class FishSchool {
     }
 
     /// `visibility` below 1 while the school dives under at an opening to the next pond.
-    func draw(on canvas: Canvas, visibility: Double = 1) {
+    /// `colors` paints the school in other colours, e.g. `brightColors`.
+    func draw(on canvas: Canvas, visibility: Double = 1, colors: Colors? = nil) {
         guard visibility > 0 else { return }
         let canvas = visibility < 1 ? FadedCanvas(canvas, amount: visibility) : canvas
-        for member in fish { draw(member, on: canvas) }
+        let species = colors.map { species.painted($0) } ?? species
+        for member in fish { draw(member, as: species, on: canvas) }
     }
+
+    struct Colors {
+        let back: Color, flank: Color, fin: Color
+    }
+
+    /// Yellow, sky blue, pink and lime, for a lotus pond in the style of Nagomi (see THIRD_PARTY_NOTICES.md).
+    static let brightColors = [
+        Colors(back: Color(0xff8c42), flank: Color(0xffe66d), fin: Color(0xffc857, alpha: 0.8)),
+        Colors(back: Color(0x3877ed), flank: Color(0x56dffc), fin: Color(0x85edff, alpha: 0.8)),
+        Colors(back: Color(0xffd05e), flank: Color(0xff72ad), fin: Color(0xff9bc2, alpha: 0.8)),
+        Colors(back: Color(0x38bb78), flank: Color(0xa8ed48), fin: Color(0xc5f56d, alpha: 0.8)),
+    ]
 
     /// Moves the whole school, e.g. into the coordinates of the pond it swam over to.
     func shift(by offset: Point) {
@@ -191,7 +211,7 @@ final class FishSchool {
         return species.halfWidth * profile
     }
 
-    private func draw(_ member: Fish, on canvas: Canvas) {
+    private func draw(_ member: Fish, as species: Species, on canvas: Canvas) {
         let points = spine(of: member)
         let bodyEnd = species.length - 3
         // A soft shadow as wide as the body, a little blurred.
@@ -199,8 +219,8 @@ final class FishSchool {
             let half = halfWidth(at: Double(step) / Double(species.length - 1))
             canvas.disc(Point(x: segment.point.x + Self.shadowOffset.x, y: segment.point.y + Self.shadowOffset.y), radius: half + 0.8, Self.shadow)
         }
-        drawTail(points, from: bodyEnd, on: canvas)
-        drawPectoralFins(points, turning: member.turning, on: canvas)
+        drawTail(points, from: bodyEnd, as: species, on: canvas)
+        drawPectoralFins(points, turning: member.turning, as: species, on: canvas)
         // Solid discs along the spine (and between points), so a diagonal fish has no gaps.
         for (step, segment) in points.prefix(bodyEnd).enumerated() {
             let half = halfWidth(at: Double(step) / Double(species.length - 1))
@@ -212,12 +232,12 @@ final class FishSchool {
         for (step, segment) in points.prefix(bodyEnd).enumerated() {
             if step >= 1 && step < bodyEnd - 1 { canvas.plot(segment.point, species.back) }
             drawMarking(at: segment.point, across: segment.direction + .pi / 2, step: step,
-                        half: halfWidth(at: Double(step) / Double(species.length - 1)), on: canvas)
+                        half: halfWidth(at: Double(step) / Double(species.length - 1)), as: species, on: canvas)
         }
         for side in [-1.0, 1.0] { canvas.plot(points[1].point.moved(by: side * species.halfWidth * 0.8, heading: points[1].direction + .pi / 2), Self.eye) }
     }
 
-    private func drawTail(_ points: [(point: Point, direction: Double)], from start: Int, on canvas: Canvas) {
+    private func drawTail(_ points: [(point: Point, direction: Double)], from start: Int, as species: Species, on canvas: Canvas) {
         for step in start..<species.length {
             let spread = Double(step - start) + 0.5
             let segment = points[step]
@@ -226,14 +246,14 @@ final class FishSchool {
     }
 
     /// Banking into a turn, the outer fin stands out and the inner one lies against the body.
-    private func drawPectoralFins(_ points: [(point: Point, direction: Double)], turning: Double, on canvas: Canvas) {
+    private func drawPectoralFins(_ points: [(point: Point, direction: Double)], turning: Double, as species: Species, on canvas: Canvas) {
         let shoulder = points[3], lean = clamp(turning * 25, -1, 1)
         for side in [-1.0, 1.0] {
             canvas.plot(shoulder.point.moved(by: species.halfWidth + 1 - side * lean, heading: shoulder.direction + side * 2.2), species.fin)
         }
     }
 
-    private func drawMarking(at point: Point, across: Double, step: Int, half: Double, on canvas: Canvas) {
+    private func drawMarking(at point: Point, across: Double, step: Int, half: Double, as species: Species, on canvas: Canvas) {
         switch species.markingStyle {
         case .none:
             break

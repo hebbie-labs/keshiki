@@ -3,7 +3,7 @@ import Foundation
 /// Settings only the koi pond has.
 struct KoiPondSettings: Codable, Equatable {
     var mood = "calm"           // calm | playful
-    var water = "pond"          // pond | deep-clear
+    var water = "pond"          // pond | deep-clear | lotus
     var callOnClick = true
     var feedOnAlt = true
 

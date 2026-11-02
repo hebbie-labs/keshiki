@@ -92,6 +92,7 @@ final class WaterStage {
         var sun: SIMD4<Float>
         var slant: SIMD4<Float>
         var light: SIMD4<Float>
+        var current: SIMD4<Float>
     }
 
     private struct Shared {
@@ -233,7 +234,7 @@ final class WaterStage {
         standing = scene.takeNewStanding().flatMap { Self.stand($0, in: pond, size: size, scale: Float(scene.pixelScale), device: device) }
         uniforms = Uniforms(viewProjection: camera.viewProjection, eye: SIMD4(camera.position, Self.apparentDepth),
                             pond: SIMD4(size.x, size.y, unit, Self.swimmerDepth), water: .zero,
-                            sun: SIMD4(Self.sunDirection, 0), slant: SIMD4(Self.sunSlant.x, Self.sunSlant.y, 0, 0), light: .zero)
+                            sun: SIMD4(Self.sunDirection, 0), slant: SIMD4(Self.sunSlant.x, Self.sunSlant.y, 0, 0), light: .zero, current: .zero)
     }
 
     /// Records the scene, moves the water on (unless it's a still), draws the stage into `target` and lays the
@@ -254,6 +255,7 @@ final class WaterStage {
         }
         uniforms.water = SIMD4(linear(surface.color), Self.waveRelief)
         uniforms.light = SIMD4(linear(surface.glow) * Float(surface.glow.weight) / 256, Float(surface.sunlight))
+        uniforms.current.x = Float(surface.current)
 
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = target

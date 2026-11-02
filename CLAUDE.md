@@ -42,4 +42,4 @@ Adding a scene: a folder under `Scenes/` with a class conforming to `LivingScene
 
 ## Conventions
 
-- All code and pixel art is original and procedural; no image assets besides `Assets/AppIcon.icns`.
+- All code and pixel art is original and procedural; no image assets besides `Assets/AppIcon.icns`. Exception: the *Lotus* water theme ports parts of Nagomi (PolyForm Noncommercial). Keep `THIRD_PARTY_NOTICES.md` (bundled into the app and the DMG) up to date when porting more, and never make Keshiki commercial while it contains them.

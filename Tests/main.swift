@@ -85,6 +85,16 @@ check(thrown == 10 && splashWorld.droplets.isEmpty, "a splash throws droplets th
 let padCanvas = DrawList(width: 1440, height: 900, scale: 1.5)
 for _ in 0..<40 { LilyPad.scatter(in: SceneSize(width: 960, height: 600)).forEach { $0.draw(on: padCanvas) } }
 check(padCanvas.primitives.allSatisfy { $0.bounds.x < $0.bounds.z && $0.bounds.y < $0.bounds.w }, "lily pads of any shape draw clean rows, slit and all")
+let lotusCanvas = DrawList(width: 1440, height: 900, scale: 1.5)
+for _ in 0..<40 { LilyPad.scatter(in: SceneSize(width: 960, height: 600)).forEach { $0.draw(on: lotusCanvas, lotus: true) } }
+check(lotusCanvas.primitives.allSatisfy { $0.bounds.x < $0.bounds.z && $0.bounds.y < $0.bounds.w }, "lotus pads of any turn draw clean rows")
+let lotusPad = LilyPad(center: Point(x: 50, y: 50), radius: 30, notchAngle: 0.2, hasFlower: false, petalTurn: 0,
+                       shade: LilyPad.Shade(leaf: Color(0), rim: Color(0), vein: Color(0)), wobble: 1)
+let lotusPixels = PixelBuffer(width: 100, height: 100)
+lotusPad.draw(on: lotusPixels, lotus: true)
+func painted(_ x: Int, _ y: Int) -> Bool { lotusPixels.pixels[y * 100 + x] != Color(0).packed }
+check(painted(25, 50) && painted(50, 25) && painted(50, 75) && !painted(75, 53) && !painted(50, 85) && !painted(85, 50),
+      "a lotus pad fills its circle all round, except for the notch")
 
 // Ponds across displays: two side by side (y up, like screen frames), one a little apart.
 let left = PondWorld(size: SceneSize(width: 960, height: 600), options: KoiPondSettings())

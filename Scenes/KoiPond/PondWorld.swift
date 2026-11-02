@@ -77,15 +77,18 @@ final class PondWorld {
     func draw(on canvas: Canvas, time: Double) {
         let byDepth = kois.sorted { $0.depth > $1.depth }
         let murk = water.color.mixed(with: Self.deepWater, 0.35)
+        let lotus = WaterPalette.named(options.water).lotus
         kois.forEach { $0.drawShadow(on: canvas, visibility: visibility(at: $0.head)) }
         for koi in byDepth where koi.depth > Self.underRosettes { koi.draw(on: canvas, murk: murk, visibility: visibility(at: koi.head)) }
-        drawRosettes(on: canvas)
-        schools.forEach { $0.draw(on: canvas, visibility: visibility(at: $0.center)) }
+        if !lotus { drawRosettes(on: canvas) }
+        for (index, school) in schools.enumerated() {
+            school.draw(on: canvas, visibility: visibility(at: school.center), colors: lotus ? FishSchool.brightColors[index % FishSchool.brightColors.count] : nil)
+        }
         for koi in byDepth where koi.depth <= Self.underRosettes { koi.draw(on: canvas, murk: murk, visibility: visibility(at: koi.head)) }
         canvas.placeSurface()
         drawFood(on: canvas)
-        drawDuckweed(on: canvas)
-        pads.forEach { $0.draw(on: canvas) }
+        drawDuckweed(on: canvas, lotus: lotus)
+        pads.forEach { $0.draw(on: canvas, lotus: lotus) }
         frog.draw(on: canvas, time: time, pads: pads)
         ball?.draw(on: canvas)
         goose?.draw(on: canvas, time: time)
